@@ -802,6 +802,12 @@ local RANK_STYLES = {
 
 local ALL_AUTOCOMPLETE_OPTIONS = { "!tag", "!role", "!spoof", "/w " }
 local CurrentContextMessage = nil
+local ReplyContextMessage = nil
+local ReplyHighlightToken = 0
+local PrivateModeTargetUsername = nil
+local PrivateModeTargetDisplayName = nil
+local PrivateModePill = nil
+local RefreshReplyUI = function() end
 
 local AssignedPlayerRoles = {}
 local AvailableUserRoles = {}
@@ -1198,7 +1204,8 @@ NotifContainerFrame.Parent = ScreenGui
 local ActiveNotifBtn = nil
 
 local function DisplayNewMessageNotif(msgData)
-    if msgData.Username == LocalPlayer.Name or msgData.IsPrivate then return end
+    if msgData.IsPrivate and msgData.Username ~= LocalPlayer.Name and msgData.TargetUsername ~= LocalPlayer.Name then return end
+    if msgData.Username == LocalPlayer.Name then return end
 
     local rawName = msgData.DisplayName or msgData.Username or "Unknown"
     local isClient = (msgData.Username == LocalPlayer.Name)
@@ -1811,6 +1818,59 @@ StickerToggleButton.MouseButton1Click:Connect(function()
     StickerPanel.Visible = not StickerPanel.Visible
 end)
 
+PrivateModePill = Instance.new("TextButton")
+PrivateModePill.Name = "PrivateModePill"
+PrivateModePill.Size = UDim2.new(0, 150, 0, 22)
+PrivateModePill.Position = UDim2.new(0, 8, 0, -25)
+PrivateModePill.BackgroundColor3 = Color3.fromRGB(150, 25, 35)
+PrivateModePill.BackgroundTransparency = 0.12
+PrivateModePill.Font = Enum.Font.GothamBold
+PrivateModePill.Text = "PVT"
+PrivateModePill.TextColor3 = Color3.fromRGB(255, 255, 255)
+PrivateModePill.TextSize = 9
+PrivateModePill.Visible = false
+PrivateModePill.ZIndex = 31
+PrivateModePill.Parent = InputBarFrame
+local privatePillCorner = Instance.new("UICorner")
+privatePillCorner.CornerRadius = UDim.new(0, 8)
+privatePillCorner.Parent = PrivateModePill
+PrivateModePill.MouseButton1Click:Connect(function()
+    ClearPersistentPrivatePrefix()
+    MessageInput:CaptureFocus()
+end)
+
+local ReplyStatusLabel = Instance.new("TextButton")
+ReplyStatusLabel.Name = "ReplyStatusLabel"
+ReplyStatusLabel.Size = UDim2.new(0, 250, 0, 22)
+ReplyStatusLabel.Position = UDim2.new(0, 165, 0, -25)
+ReplyStatusLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+ReplyStatusLabel.BackgroundTransparency = 0.12
+ReplyStatusLabel.Font = Enum.Font.Gotham
+ReplyStatusLabel.TextColor3 = Color3.fromRGB(230, 230, 240)
+ReplyStatusLabel.TextSize = 9
+ReplyStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+ReplyStatusLabel.Text = ""
+ReplyStatusLabel.Visible = false
+ReplyStatusLabel.ZIndex = 31
+ReplyStatusLabel.Parent = InputBarFrame
+local replyStatusCorner = Instance.new("UICorner")
+replyStatusCorner.CornerRadius = UDim.new(0, 8)
+replyStatusCorner.Parent = ReplyStatusLabel
+RefreshReplyUI = function()
+    if ReplyContextMessage then
+        ReplyStatusLabel.Text = "  ↩ Replying to " .. TruncateText(ReplyContextMessage.DisplayName or ReplyContextMessage.Username or "message", 22) .. "  ×"
+        ReplyStatusLabel.Visible = true
+    else
+        ReplyStatusLabel.Visible = false
+        ReplyStatusLabel.Text = ""
+    end
+end
+ReplyStatusLabel.MouseButton1Click:Connect(function()
+    ReplyContextMessage = nil
+    RefreshReplyUI()
+    MessageInput:CaptureFocus()
+end)
+
 local SendButton = Instance.new("TextButton")
 SendButton.Name = "SendButton"
 SendButton.Size = UDim2.new(0, 38, 1, -8)
@@ -1855,7 +1915,7 @@ end)
 
 local ContextMenu = Instance.new("Frame")
 ContextMenu.Name = "ContextMenu"
-ContextMenu.Size = UDim2.new(0, 160, 0, 105)
+ContextMenu.Size = UDim2.new(0, 160, 0, 125)
 ContextMenu.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
 ContextMenu.BackgroundTransparency = 0.2
 ContextMenu.BorderSizePixel = 0
@@ -1905,13 +1965,34 @@ local function ResolvePrivateRecipient(prefix)
     return nil
 end
 
+local function RefreshPrivateModeUI()
+    if not PrivateModePill then return end
+    local active = PersistentPvtPrefix ~= ""
+    PrivateModePill.Visible = active
+    if active then
+        PrivateModePill.Text = "PVT • " .. TruncateText(PrivateModeTargetDisplayName or "Private", 16) .. "  ×"
+    end
+end
+
 local function SetPersistentPrivatePrefix(displayName, username)
     local safeName = tostring(displayName or username or "Unknown")
     local first8 = string.sub(safeName, 1, 8)
     PersistentPvtPrefix = "/pvt @" .. first8 .. " "
+    PrivateModeTargetUsername = username
+    PrivateModeTargetDisplayName = safeName
     MessageInput.Text = PersistentPvtPrefix
     MessageInput.CursorPosition = #MessageInput.Text + 1
     MessageInput:CaptureFocus()
+    RefreshPrivateModeUI()
+end
+
+local function ClearPersistentPrivatePrefix()
+    PersistentPvtPrefix = ""
+    PrivateModeTargetUsername = nil
+    PrivateModeTargetDisplayName = nil
+    MessageInput.Text = ""
+    MessageInput.CursorPosition = 1
+    RefreshPrivateModeUI()
 end
 
 local function ShowMessageContextMenu(msgData, position)
@@ -1967,10 +2048,16 @@ local function BuildMessageContextMenu()
         end
     end)
 
-    AddContextMenuButton("Pvt Message", 2, function()
+    AddContextMenuButton("Reply", 2, function()
+        if not CurrentContextMessage then return end
+        ReplyContextMessage = CurrentContextMessage
+        RefreshReplyUI()
+        MessageInput:CaptureFocus()
+    end)
+
+    AddContextMenuButton("Pvt Message", 3, function()
         if not CurrentContextMessage then return end
         local msg = CurrentContextMessage
-        if msg.Username == LocalPlayer.Name then return end
         local displayName = msg.DisplayName or msg.Username or "Unknown"
         SetPersistentPrivatePrefix(displayName, msg.Username)
     end)
@@ -2137,13 +2224,39 @@ local function CreateMessageCard(msgData, isGlobal)
         end
     end)
 
+    if msgData.ReplyToText and msgData.ReplyToText ~= "" then
+        local replyBox = Instance.new("Frame")
+        replyBox.Name = "ReplyPreview"
+        replyBox.Size = UDim2.new(1, -48, 0, 30)
+        replyBox.Position = UDim2.new(0, 38, 0, 24)
+        replyBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        replyBox.BackgroundTransparency = 0.88
+        replyBox.BorderSizePixel = 0
+        replyBox.Parent = frame
+        local replyCorner = Instance.new("UICorner")
+        replyCorner.CornerRadius = UDim.new(0, 6)
+        replyCorner.Parent = replyBox
+        local replyLabel = Instance.new("TextLabel")
+        replyLabel.Size = UDim2.new(1, -10, 1, -4)
+        replyLabel.Position = UDim2.new(0, 5, 0, 2)
+        replyLabel.BackgroundTransparency = 1
+        replyLabel.Font = Enum.Font.Gotham
+        replyLabel.Text = "↩ " .. tostring(msgData.ReplyToDisplayName or "Reply") .. ": " .. TruncateText(tostring(msgData.ReplyToText), 80)
+        replyLabel.TextColor3 = Color3.fromRGB(210, 210, 220)
+        replyLabel.TextSize = 9
+        replyLabel.TextXAlignment = Enum.TextXAlignment.Left
+        replyLabel.TextYAlignment = Enum.TextYAlignment.Center
+        replyLabel.TextWrapped = true
+        replyLabel.Parent = replyBox
+    end
+
     local isSticker = string.sub(msgData.Text, 1, 11) == "rbxthumb://" or string.sub(msgData.Text, 1, 13) == "rbxassetid://"
 
     if isSticker then
         local stickerImg = Instance.new("ImageLabel")
         stickerImg.Name = "StickerMsg"
         stickerImg.Size = UDim2.new(0, 80, 0, 80)
-        stickerImg.Position = UDim2.new(0, 38, 0, 26)
+        stickerImg.Position = UDim2.new(0, 38, 0, msgData.ReplyToText and 60 or 26)
         stickerImg.BackgroundTransparency = 1
         stickerImg.Image = msgData.Text
         stickerImg.ScaleType = Enum.ScaleType.Fit
@@ -2156,7 +2269,7 @@ local function CreateMessageCard(msgData, isGlobal)
         local contentLabel = Instance.new("TextLabel")
         contentLabel.Name = "ContentLabel"
         contentLabel.Size = UDim2.new(1, -48, 0, 0)
-        contentLabel.Position = UDim2.new(0, 38, 0, 24)
+        contentLabel.Position = UDim2.new(0, 38, 0, msgData.ReplyToText and 58 or 24)
         contentLabel.AutomaticSize = Enum.AutomaticSize.Y
         contentLabel.BackgroundTransparency = 1
         contentLabel.Font = Enum.Font.Gotham
@@ -2205,6 +2318,32 @@ local function CreateMessageCard(msgData, isGlobal)
     end)
 
     frame.Parent = MessageContainer
+    frame:SetAttribute("MessageTimestamp", msgData.Timestamp or 0)
+    frame:SetAttribute("MessageUsername", msgData.Username or "")
+
+    if msgData.ReplyToTimestamp then
+        task.delay(0.15, function()
+            for _, child in ipairs(MessageContainer:GetChildren()) do
+                if child:IsA("Frame") and child:GetAttribute("MessageTimestamp") == msgData.ReplyToTimestamp and child:GetAttribute("MessageUsername") == msgData.ReplyToUsername then
+                    local stroke = child:FindFirstChild("ReplyHighlight")
+                    if not stroke then
+                        stroke = Instance.new("UIStroke")
+                        stroke.Name = "ReplyHighlight"
+                        stroke.Thickness = 2
+                        stroke.Color = Color3.fromRGB(255, 70, 70)
+                        stroke.Transparency = 0.1
+                        stroke.Parent = child
+                    end
+                    task.delay(2.5, function()
+                        if stroke and stroke.Parent then
+                            TweenService:Create(stroke, TweenInfo.new(0.5), {Transparency = 1}):Play()
+                        end
+                    end)
+                    break
+                end
+            end
+        end)
+    end
     return frame
 end
 
@@ -2215,62 +2354,44 @@ SendChatMessage = function()
     local text = MessageInput.Text
     if text == "" or text:match("^%s*$") then return end
 
-    -- Persistent /pvt mode: the prefix stays in the input after each private send.
-    local isPrivate = false
-    local privateTargetUsername = nil
-    local privateTargetDisplayName = nil
+    local isPrivate = PersistentPvtPrefix ~= ""
+    local privateTargetUsername = PrivateModeTargetUsername
+    local privateTargetDisplayName = PrivateModeTargetDisplayName
     local privateBody = text
 
-    if PersistentPvtPrefix ~= "" then
-        if string.sub(text, 1, #PersistentPvtPrefix) == PersistentPvtPrefix then
-            local body = string.sub(text, #PersistentPvtPrefix + 1)
-            if body:match("^%s*$") then return end
-            privateTargetDisplayName = string.sub(PersistentPvtPrefix, 7, -2)
-            privateTargetUsername, privateTargetDisplayName = ResolvePrivateRecipient(privateTargetDisplayName)
-            if not privateTargetUsername then return end
-            isPrivate = true
-            privateBody = body
-        else
-            -- A manually changed input exits persistent private mode.
-            PersistentPvtPrefix = ""
+    if isPrivate then
+        -- Never let focus/clicking inside the TextBox cancel the prefix.
+        if string.sub(text, 1, #PersistentPvtPrefix) ~= PersistentPvtPrefix then
+            text = PersistentPvtPrefix .. text
         end
-    end
-
-    -- One-shot /pvt command support as well, so the generated prefix is a normal command.
-    if not isPrivate and string.sub(text, 1, 6) == "/pvt @" then
-        local rest = string.sub(text, 7)
-        local prefix, body = rest:match("^(%S+)%s+(.+)$")
-        if prefix and body and body ~= "" then
+        privateBody = string.sub(text, #PersistentPvtPrefix + 1)
+        if privateBody:match("^%s*$") then return end
+        if not privateTargetUsername then
+            local prefix = string.sub(PersistentPvtPrefix, 7, -2)
             privateTargetUsername, privateTargetDisplayName = ResolvePrivateRecipient(prefix)
-            if privateTargetUsername then
-                isPrivate = true
-                privateBody = body
-                PersistentPvtPrefix = "/pvt @" .. string.sub(privateTargetDisplayName or prefix, 1, 8) .. " "
-            end
         end
+        if not privateTargetUsername then return end
     end
 
-    -- Command Processing
     if not isPrivate and string.sub(text, 1, 5) == "!tag " then
         local newRole = string.sub(text, 6)
         local allowedRoles = AvailableUserRoles[LocalPlayer.Name] or {}
         local isAdmin = HasAdminPermission(LocalPlayer.Name)
-
         if table.find(allowedRoles, newRole) or isAdmin or RANK_STYLES[newRole] then
             AssignedPlayerRoles[LocalPlayer.Name] = newRole
             DisabledTags[LocalPlayer.Name] = nil
         end
-        MessageInput.Text = PersistentPvtPrefix
+        MessageInput.Text = ""
         return
     elseif not isPrivate and text == "!tag" then
         DisabledTags[LocalPlayer.Name] = not DisabledTags[LocalPlayer.Name]
-        MessageInput.Text = PersistentPvtPrefix
+        MessageInput.Text = ""
         return
     elseif not isPrivate and string.sub(text, 1, 7) == "!spoof " then
         if CanUseSpoof(LocalPlayer.Name) then
             SpoofedDisplayName = string.sub(text, 8)
         end
-        MessageInput.Text = PersistentPvtPrefix
+        MessageInput.Text = ""
         return
     end
 
@@ -2279,6 +2400,7 @@ SendChatMessage = function()
         ConsecutiveSpamCount = ConsecutiveSpamCount + 1
         if ConsecutiveSpamCount >= 3 then
             MessageInput.Text = PersistentPvtPrefix
+            MessageInput.CursorPosition = #MessageInput.Text + 1
             return
         end
     else
@@ -2288,6 +2410,7 @@ SendChatMessage = function()
     LastSentMessageText = text
     LastMessageSendTime = now
 
+    local reply = ReplyContextMessage
     local payload = {
         Username = LocalPlayer.Name,
         DisplayName = GetFormattedDisplayName(LocalPlayer.DisplayName, true),
@@ -2297,33 +2420,28 @@ SendChatMessage = function()
         PfpId = CurrentPfpId,
         IsPrivate = isPrivate,
         TargetUsername = privateTargetUsername,
-        TargetDisplayName = privateTargetDisplayName
+        TargetDisplayName = privateTargetDisplayName,
+        ReplyToUsername = reply and reply.Username or nil,
+        ReplyToDisplayName = reply and reply.DisplayName or nil,
+        ReplyToText = reply and reply.Text or nil,
+        ReplyToTimestamp = reply and reply.Timestamp or nil
     }
 
     local targetUrl = (ActiveTab == "GLOBAL") and GLOBAL_MESSAGES_ENDPOINT or SERVER_MESSAGES_ENDPOINT
 
-    -- Normal messages clear the box; persistent private mode keeps its /pvt prefix.
-    MessageInput.Text = PersistentPvtPrefix
-    MessageInput.CursorPosition = #MessageInput.Text + 1
+    if isPrivate then
+        MessageInput.Text = PersistentPvtPrefix
+        MessageInput.CursorPosition = #MessageInput.Text + 1
+    else
+        MessageInput.Text = ""
+    end
+    ReplyContextMessage = nil
+    RefreshReplyUI()
+
     task.spawn(function()
         HttpRequest(targetUrl, "POST", payload)
     end)
 end
-MessageInput.InputBegan:Connect(function(input)
-    if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
-    if PersistentPvtPrefix == "" then return end
-
-    -- Tapping/clicking the /pvt prefix itself exits persistent private mode.
-    task.defer(function()
-        if not MessageInput:IsFocused() then return end
-        local cursor = MessageInput.CursorPosition
-        if cursor > 0 and cursor <= #PersistentPvtPrefix + 1 then
-            PersistentPvtPrefix = ""
-            MessageInput.Text = ""
-            MessageInput.CursorPosition = 1
-        end
-    end)
-end)
 
 SendButton.MouseButton1Click:Connect(SendChatMessage)
 MessageInput.FocusLost:Connect(function(enterPressed)
@@ -2338,7 +2456,7 @@ local function PollMessages()
         local globalData = HttpRequest(GLOBAL_MESSAGES_ENDPOINT, "GET")
         if globalData and type(globalData) == "table" then
             for id, msg in pairs(globalData) do
-                if type(msg) == "table" and msg.Timestamp and msg.Timestamp >= ScriptStartTime and (not msg.IsPrivate or msg.TargetUsername == LocalPlayer.Name) then
+                if type(msg) == "table" and msg.Timestamp and msg.Timestamp >= ScriptStartTime and (not msg.IsPrivate or msg.Username == LocalPlayer.Name or msg.TargetUsername == LocalPlayer.Name) then
                     if not GlobalCachedMessages[id] then
                         GlobalCachedMessages[id] = msg
                         local card = CreateMessageCard(msg, true)
@@ -2353,7 +2471,7 @@ local function PollMessages()
         local serverData = HttpRequest(SERVER_MESSAGES_ENDPOINT, "GET")
         if serverData and type(serverData) == "table" then
             for id, msg in pairs(serverData) do
-                if type(msg) == "table" and msg.Timestamp and msg.Timestamp >= ScriptStartTime and (not msg.IsPrivate or msg.TargetUsername == LocalPlayer.Name) then
+                if type(msg) == "table" and msg.Timestamp and msg.Timestamp >= ScriptStartTime and (not msg.IsPrivate or msg.Username == LocalPlayer.Name or msg.TargetUsername == LocalPlayer.Name) then
                     if not ServerCachedMessages[id] then
                         ServerCachedMessages[id] = msg
                         local card = CreateMessageCard(msg, false)
