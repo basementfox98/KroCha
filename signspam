@@ -461,7 +461,7 @@ local SERVER_MESSAGES_ENDPOINT = SERVER_FIREBASE_URL .. "server_chat/" .. SERVER
 local REQUEST_FIREBASE_URL = "https://gctagreq-default-rtdb.asia-southeast1.firebasedatabase.app/"
 local REQUEST_ENDPOINT = REQUEST_FIREBASE_URL .. "requests.json"
 
-local GITHUB_ROLE_LIST_URL = "https://github.com/basementfox98/KroCha/raw/refs/heads/main/RoleListNew.js"
+local GITHUB_ROLE_LIST_URL = "https://github.com/thedevilondiscord/GC/raw/refs/heads/main/GC_RoleList.json"
 local GITHUB_RANK_STYLES_URL = "https://raw.githubusercontent.com/thedevilondiscord/GC/refs/heads/main/GC_Roles.json"
 
 local JOIN_SOUND_ID = "rbxassetid://7460825623"
@@ -801,11 +801,11 @@ local RANK_STYLES = {
 }
 
 local ALL_AUTOCOMPLETE_OPTIONS = { "!tag", "!role", "!spoof", "/w " }
+local CurrentContextMessage = nil
 
 local AssignedPlayerRoles = {}
 local AvailableUserRoles = {}
-local DisabledTags = {}
-local RestrictedTagRoleEntries = {}
+local DisabledTags = {}        
 local PersistentPvtPrefix = ""
 
 local GlobalCachedMessages, GlobalUIElements = {}, {}
@@ -899,72 +899,6 @@ local function HasAdminPermission(username)
     return role == "Architect" or role == "Overseer" or role == "Critic"
 end
 
--- Restricted !tag roles must be authorized by BOTH Username and EncodedId
--- from the remote RoleListNew.js roster. No admin/style fallback is allowed
--- for these specific roles.
-local RESTRICTED_TAG_ROLES = {
-    ["architect"] = "Architect",
-    ["overseer"] = "Overseer",
-    ["critic"] = "Critic",
-    ["og"] = "OG",
-    ["hacker"] = "HACKER",
-    ["god"] = "GOD",
-    ["regent of codes"] = "Regent of Codes",
-    ["regent of clans"] = "Regent of Clans",
-    ["regent of havoc"] = "Regent of Havoc",
-    ["serial killer"] = "Serial Killer🔪",
-    ["serial killer🔪"] = "Serial Killer🔪",
-    ["com-god"] = "Com-God",
-    ["com god"] = "Com-God"
-}
-
-local function GetRestrictedTagRoleName(roleName)
-    if type(roleName) ~= "string" then return nil end
-    local normalized = string.lower((roleName:gsub("^%s+", ""):gsub("%s+$", "")))
-    return RESTRICTED_TAG_ROLES[normalized]
-end
-
-local function HasRestrictedTagPermission(username, roleName)
-    local canonicalRole = GetRestrictedTagRoleName(roleName)
-    if not canonicalRole then
-        return false, nil
-    end
-
-    local playerObj = Players:FindFirstChild(username)
-    if not playerObj then
-        return false, canonicalRole
-    end
-
-    -- The EncodedId is derived from the live UserId: first 5 digits moved
-    -- to the end, then 0 appended. Both fields must match the same entry.
-    local encodedId = tostring(EncodePlayerId(playerObj.UserId))
-    local usernameText = tostring(username)
-
-    local entries = RestrictedTagRoleEntries[canonicalRole] or {}
-    for _, entry in ipairs(entries) do
-        if tostring(entry.Username or "") == usernameText
-            and tostring(entry.EncodedId or "") == encodedId then
-            return true, canonicalRole
-        end
-    end
-
-    -- Do not depend on capitalization of the role key in the remote list.
-    for listedRoleName, listedEntries in pairs(RestrictedTagRoleEntries) do
-        if type(listedRoleName) == "string"
-            and string.lower(listedRoleName) == string.lower(canonicalRole)
-            and type(listedEntries) == "table" then
-            for _, entry in ipairs(listedEntries) do
-                if tostring(entry.Username or "") == usernameText
-                    and tostring(entry.EncodedId or "") == encodedId then
-                    return true, canonicalRole
-                end
-            end
-        end
-    end
-
-    return false, canonicalRole
-end
-
 local function CanUseSpoof(username)
     local role = GetAssignedOrCalculatedRole(username)
     local allowedRoles = {
@@ -1008,7 +942,6 @@ local function FetchRemoteRoles()
     if not jsonRoster or type(jsonRoster) ~= "table" then return end
 
     AvailableUserRoles = {}
-    RestrictedTagRoleEntries = {}
 
     for rankName, playerList in pairs(jsonRoster) do
         if type(playerList) == "table" then
@@ -1021,17 +954,6 @@ local function FetchRemoteRoles()
                     targetEncodedId = tostring(entry.EncodedId or "")
                 elseif type(entry) == "string" then
                     targetUsername = entry
-                end
-
-                -- Preserve the existing role-list behavior for normal roles,
-                -- while separately retaining the exact Username + EncodedId pair
-                -- required by restricted !tag roles.
-                if type(entry) == "table" and targetUsername and targetEncodedId ~= "" then
-                    RestrictedTagRoleEntries[rankName] = RestrictedTagRoleEntries[rankName] or {}
-                    table.insert(RestrictedTagRoleEntries[rankName], {
-                        Username = tostring(targetUsername),
-                        EncodedId = targetEncodedId
-                    })
                 end
 
                 for _, player in ipairs(Players:GetPlayers()) do
@@ -1949,6 +1871,131 @@ local ContextList = Instance.new("UIListLayout")
 ContextList.SortOrder = Enum.SortOrder.LayoutOrder
 ContextList.Parent = ContextMenu
 
+local function HideMessageContextMenu()
+    ContextMenu.Visible = false
+    CurrentContextMessage = nil
+end
+
+local function ResolvePrivateRecipient(prefix)
+    prefix = tostring(prefix or "")
+    if prefix == "" then return nil end
+    local needle = string.lower(string.sub(prefix, 1, 8))
+
+    -- Prefer players currently present in this server.
+    for _, player in ipairs(Players:GetPlayers()) do
+        local displayName = player.DisplayName or player.Name or ""
+        if string.lower(string.sub(displayName, 1, 8)) == needle then
+            return player.Name, displayName
+        end
+    end
+
+    -- Fall back to people whose messages are already known to this client.
+    local caches = { GlobalCachedMessages, ServerCachedMessages }
+    for _, cache in ipairs(caches) do
+        for _, msg in pairs(cache) do
+            if type(msg) == "table" then
+                local displayName = msg.DisplayName or msg.Username or ""
+                if string.lower(string.sub(displayName, 1, 8)) == needle then
+                    return msg.Username, displayName
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
+local function SetPersistentPrivatePrefix(displayName, username)
+    local safeName = tostring(displayName or username or "Unknown")
+    local first8 = string.sub(safeName, 1, 8)
+    PersistentPvtPrefix = "/pvt @" .. first8 .. " "
+    MessageInput.Text = PersistentPvtPrefix
+    MessageInput.CursorPosition = #MessageInput.Text + 1
+    MessageInput:CaptureFocus()
+end
+
+local function ShowMessageContextMenu(msgData, position)
+    CurrentContextMessage = msgData
+    ContextMenu.Visible = true
+    ContextMenu.Position = UDim2.fromOffset(position.X, position.Y)
+
+    -- Keep the menu on-screen.
+    task.defer(function()
+        if not ContextMenu.Visible then return end
+        local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(800, 600)
+        local size = ContextMenu.AbsoluteSize
+        local x = math.clamp(position.X, 4, math.max(4, viewport.X - size.X - 4))
+        local y = math.clamp(position.Y, 4, math.max(4, viewport.Y - size.Y - 4))
+        ContextMenu.Position = UDim2.fromOffset(x, y)
+    end)
+end
+
+local function AddContextMenuButton(text, order, callback)
+    local button = Instance.new("TextButton")
+    button.Name = text:gsub("%s+", "") .. "Button"
+    button.Size = UDim2.new(1, 0, 0, 40)
+    button.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    button.BackgroundTransparency = 0.15
+    button.BorderSizePixel = 0
+    button.Font = Enum.Font.GothamMedium
+    button.Text = text
+    button.TextColor3 = Color3.fromRGB(240, 240, 245)
+    button.TextSize = 12
+    button.LayoutOrder = order
+    button.ZIndex = 21
+    button.Parent = ContextMenu
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 7)
+    corner.Parent = button
+
+    button.MouseButton1Click:Connect(function()
+        callback()
+        HideMessageContextMenu()
+    end)
+    return button
+end
+
+local function BuildMessageContextMenu()
+    for _, child in ipairs(ContextMenu:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+
+    AddContextMenuButton("Copy Message", 1, function()
+        if CurrentContextMessage and setclipboard then
+            setclipboard(tostring(CurrentContextMessage.Text or ""))
+        end
+    end)
+
+    AddContextMenuButton("Pvt Message", 2, function()
+        if not CurrentContextMessage then return end
+        local msg = CurrentContextMessage
+        if msg.Username == LocalPlayer.Name then return end
+        local displayName = msg.DisplayName or msg.Username or "Unknown"
+        SetPersistentPrivatePrefix(displayName, msg.Username)
+    end)
+end
+
+BuildMessageContextMenu()
+
+ContextMenu.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        -- Let child option buttons handle their own click; this only prevents accidental hiding.
+    end
+end)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not ContextMenu.Visible or gameProcessed then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        local p = input.Position
+        local pos = ContextMenu.AbsolutePosition
+        local size = ContextMenu.AbsoluteSize
+        if p.X < pos.X or p.X > pos.X + size.X or p.Y < pos.Y or p.Y > pos.Y + size.Y then
+            HideMessageContextMenu()
+        end
+    end
+end)
+
 -- Draggable Logic
 local function MakeDraggable(frame, dragHandle)
     local dragging, dragInput, dragStart, startPos
@@ -2021,7 +2068,7 @@ local function CreateMessageCard(msgData, isGlobal)
     frame.Name = "MessageCard"
     frame.Size = UDim2.new(1, 0, 0, 0)
     frame.AutomaticSize = Enum.AutomaticSize.Y
-    frame.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+    frame.BackgroundColor3 = msgData.IsPrivate and Color3.fromRGB(120, 20, 28) or Color3.fromRGB(15, 15, 22)
     frame.BackgroundTransparency = 0.4
     frame.BorderSizePixel = 0
 
@@ -2126,6 +2173,37 @@ local function CreateMessageCard(msgData, isGlobal)
         pad.Parent = frame
     end
 
+    -- Transparent interaction layer: long-pressing any part of the message opens the options menu.
+    local interactionButton = Instance.new("TextButton")
+    interactionButton.Name = "MessageInteraction"
+    interactionButton.Size = UDim2.new(1, 0, 1, 0)
+    interactionButton.Position = UDim2.new(0, 0, 0, 0)
+    interactionButton.BackgroundTransparency = 1
+    interactionButton.BorderSizePixel = 0
+    interactionButton.Text = ""
+    interactionButton.AutoButtonColor = false
+    interactionButton.ZIndex = 10
+    interactionButton.Parent = frame
+
+    local pressToken = 0
+    interactionButton.InputBegan:Connect(function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
+        pressToken = pressToken + 1
+        local token = pressToken
+        local pressPosition = input.Position
+
+        task.delay(0.65, function()
+            if token ~= pressToken or not interactionButton.Parent then return end
+            ShowMessageContextMenu(msgData, pressPosition)
+        end)
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                pressToken = pressToken + 1
+            end
+        end)
+    end)
+
     frame.Parent = MessageContainer
     return frame
 end
@@ -2137,37 +2215,62 @@ SendChatMessage = function()
     local text = MessageInput.Text
     if text == "" or text:match("^%s*$") then return end
 
+    -- Persistent /pvt mode: the prefix stays in the input after each private send.
+    local isPrivate = false
+    local privateTargetUsername = nil
+    local privateTargetDisplayName = nil
+    local privateBody = text
+
+    if PersistentPvtPrefix ~= "" then
+        if string.sub(text, 1, #PersistentPvtPrefix) == PersistentPvtPrefix then
+            local body = string.sub(text, #PersistentPvtPrefix + 1)
+            if body:match("^%s*$") then return end
+            privateTargetDisplayName = string.sub(PersistentPvtPrefix, 7, -2)
+            privateTargetUsername, privateTargetDisplayName = ResolvePrivateRecipient(privateTargetDisplayName)
+            if not privateTargetUsername then return end
+            isPrivate = true
+            privateBody = body
+        else
+            -- A manually changed input exits persistent private mode.
+            PersistentPvtPrefix = ""
+        end
+    end
+
+    -- One-shot /pvt command support as well, so the generated prefix is a normal command.
+    if not isPrivate and string.sub(text, 1, 6) == "/pvt @" then
+        local rest = string.sub(text, 7)
+        local prefix, body = rest:match("^(%S+)%s+(.+)$")
+        if prefix and body and body ~= "" then
+            privateTargetUsername, privateTargetDisplayName = ResolvePrivateRecipient(prefix)
+            if privateTargetUsername then
+                isPrivate = true
+                privateBody = body
+                PersistentPvtPrefix = "/pvt @" .. string.sub(privateTargetDisplayName or prefix, 1, 8) .. " "
+            end
+        end
+    end
+
     -- Command Processing
-    if string.sub(text, 1, 5) == "!tag " then
+    if not isPrivate and string.sub(text, 1, 5) == "!tag " then
         local newRole = string.sub(text, 6)
         local allowedRoles = AvailableUserRoles[LocalPlayer.Name] or {}
         local isAdmin = HasAdminPermission(LocalPlayer.Name)
-        local restrictedAllowed, canonicalRestrictedRole = HasRestrictedTagPermission(LocalPlayer.Name, newRole)
 
-        if canonicalRestrictedRole then
-            -- Restricted roles can ONLY be selected when the local player's
-            -- Username and EncodedId are both present for that exact role
-            -- in RoleListNew.js.
-            if restrictedAllowed then
-                AssignedPlayerRoles[LocalPlayer.Name] = canonicalRestrictedRole
-                DisabledTags[LocalPlayer.Name] = nil
-            end
-        elseif table.find(allowedRoles, newRole) or isAdmin or RANK_STYLES[newRole] then
-            -- Existing behavior for all non-restricted roles is unchanged.
+        if table.find(allowedRoles, newRole) or isAdmin or RANK_STYLES[newRole] then
             AssignedPlayerRoles[LocalPlayer.Name] = newRole
             DisabledTags[LocalPlayer.Name] = nil
         end
-        MessageInput.Text = ""
+        MessageInput.Text = PersistentPvtPrefix
         return
-    elseif text == "!tag" then
+    elseif not isPrivate and text == "!tag" then
         DisabledTags[LocalPlayer.Name] = not DisabledTags[LocalPlayer.Name]
-        MessageInput.Text = ""
+        MessageInput.Text = PersistentPvtPrefix
         return
-    elseif string.sub(text, 1, 7) == "!spoof " then
+    elseif not isPrivate and string.sub(text, 1, 7) == "!spoof " then
         if CanUseSpoof(LocalPlayer.Name) then
             SpoofedDisplayName = string.sub(text, 8)
         end
-        MessageInput.Text = ""
+        MessageInput.Text = PersistentPvtPrefix
         return
     end
 
@@ -2175,7 +2278,7 @@ SendChatMessage = function()
     if text == LastSentMessageText and (now - LastMessageSendTime) < 3 then
         ConsecutiveSpamCount = ConsecutiveSpamCount + 1
         if ConsecutiveSpamCount >= 3 then
-            MessageInput.Text = ""
+            MessageInput.Text = PersistentPvtPrefix
             return
         end
     else
@@ -2188,20 +2291,39 @@ SendChatMessage = function()
     local payload = {
         Username = LocalPlayer.Name,
         DisplayName = GetFormattedDisplayName(LocalPlayer.DisplayName, true),
-        Text = text,
+        Text = privateBody,
         Timestamp = os.time(),
         Role = GetAssignedOrCalculatedRole(LocalPlayer.Name),
         PfpId = CurrentPfpId,
-        IsPrivate = false
+        IsPrivate = isPrivate,
+        TargetUsername = privateTargetUsername,
+        TargetDisplayName = privateTargetDisplayName
     }
 
     local targetUrl = (ActiveTab == "GLOBAL") and GLOBAL_MESSAGES_ENDPOINT or SERVER_MESSAGES_ENDPOINT
 
-    MessageInput.Text = ""
+    -- Normal messages clear the box; persistent private mode keeps its /pvt prefix.
+    MessageInput.Text = PersistentPvtPrefix
+    MessageInput.CursorPosition = #MessageInput.Text + 1
     task.spawn(function()
         HttpRequest(targetUrl, "POST", payload)
     end)
 end
+MessageInput.InputBegan:Connect(function(input)
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
+    if PersistentPvtPrefix == "" then return end
+
+    -- Tapping/clicking the /pvt prefix itself exits persistent private mode.
+    task.defer(function()
+        if not MessageInput:IsFocused() then return end
+        local cursor = MessageInput.CursorPosition
+        if cursor > 0 and cursor <= #PersistentPvtPrefix + 1 then
+            PersistentPvtPrefix = ""
+            MessageInput.Text = ""
+            MessageInput.CursorPosition = 1
+        end
+    end)
+end)
 
 SendButton.MouseButton1Click:Connect(SendChatMessage)
 MessageInput.FocusLost:Connect(function(enterPressed)
@@ -2216,7 +2338,7 @@ local function PollMessages()
         local globalData = HttpRequest(GLOBAL_MESSAGES_ENDPOINT, "GET")
         if globalData and type(globalData) == "table" then
             for id, msg in pairs(globalData) do
-                if type(msg) == "table" and msg.Timestamp and msg.Timestamp >= ScriptStartTime then
+                if type(msg) == "table" and msg.Timestamp and msg.Timestamp >= ScriptStartTime and (not msg.IsPrivate or msg.TargetUsername == LocalPlayer.Name) then
                     if not GlobalCachedMessages[id] then
                         GlobalCachedMessages[id] = msg
                         local card = CreateMessageCard(msg, true)
@@ -2231,7 +2353,7 @@ local function PollMessages()
         local serverData = HttpRequest(SERVER_MESSAGES_ENDPOINT, "GET")
         if serverData and type(serverData) == "table" then
             for id, msg in pairs(serverData) do
-                if type(msg) == "table" and msg.Timestamp and msg.Timestamp >= ScriptStartTime then
+                if type(msg) == "table" and msg.Timestamp and msg.Timestamp >= ScriptStartTime and (not msg.IsPrivate or msg.TargetUsername == LocalPlayer.Name) then
                     if not ServerCachedMessages[id] then
                         ServerCachedMessages[id] = msg
                         local card = CreateMessageCard(msg, false)
