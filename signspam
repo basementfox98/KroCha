@@ -743,10 +743,10 @@ baseStickers = uniqueStickers
 -- HARDCODED RANKS & DEFAULT STYLES
 -- ============================================================================
 local RANK_STYLES = {
-["Architect"]          = { Start = Color3.fromRGB(255, 30, 30),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(255, 30, 30),   Speed = 1.5, IsAdmin = true },
-["Overseer"]           = { Start = Color3.fromRGB(255, 30, 30),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(255, 30, 30),   Speed = 1.5, IsAdmin = true },
+["Architect"]          = { Start = Color3.fromRGB(255, 0, 0),    End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(255, 0, 0),    Speed = 1.5, IsAdmin = true },
+["Overseer"]           = { Start = Color3.fromRGB(255, 0, 0),    End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(255, 0, 0),    Speed = 1.5, IsAdmin = true },
 ["Critic"]             = { Start = Color3.fromRGB(30, 144, 255),  End = Color3.fromRGB(0, 0, 139),     Name = Color3.fromRGB(30, 144, 255),  Speed = 1.5, IsAdmin = true },
-["Recruit"]            = { Start = Color3.fromRGB(255, 105, 180), End = Color3.fromRGB(255, 255, 255), Name = Color3.fromRGB(255, 105, 180), Speed = 1.2 },
+["Recruit"]            = { Start = Color3.fromRGB(255, 255, 255), End = Color3.fromRGB(255, 255, 255), Name = Color3.fromRGB(255, 255, 255), Speed = 1.2 },
 ["Agent"]              = { Start = Color3.fromRGB(0, 191, 255),   End = Color3.fromRGB(255, 255, 255), Name = Color3.fromRGB(0, 191, 255),   Speed = 1.2 },
 ["Regent of Codes"]    = { Start = Color3.fromRGB(30, 255, 30),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(30, 255, 30),   Speed = 1.2 },
 ["Regent of Clans"]    = { Start = Color3.fromRGB(255, 215, 0),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(255, 215, 0),   Speed = 1.2 },
@@ -799,6 +799,116 @@ local RANK_STYLES = {
 ["DADDY"]              = { Start = Color3.fromRGB(255, 140, 0),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(255, 140, 0),   Speed = 1.5 },
 ["STEPDADDY"]          = { Start = Color3.fromRGB(255, 69, 0),    End = Color3.fromRGB(47, 79, 79),    Name = Color3.fromRGB(255, 99, 71),   Speed = 1.5 },
 }
+
+-- ============================================================================
+-- ROLE/TAG FONT ANIMATION
+-- The entire role-name font smoothly transitions between its assigned colours.
+-- The profile below is intentionally separate from remotely-fetched rank styles
+-- so these animation preferences cannot be overwritten by remote style refreshes.
+-- ============================================================================
+local ROLE_FONT_ANIMATION = {
+    ["Dark Passenger"] = { Speed = "Flashing" },
+    ["Obsession"] = { Speed = "Medium" },
+    ["Soul Reaper"] = { Speed = "Fast" },
+    ["Infinite Void"] = { Speed = "Slow" },
+    ["Hunter"] = { Speed = "Fast" },
+    ["Hokage"] = { Speed = "Medium" },
+    ["Pirate Emperor"] = { Speed = "Fast" },
+    ["KIRA"] = { Speed = "Slow" },
+    ["Overlord"] = { Speed = "Medium" },
+    ["Jobless Sage"] = { Speed = "Slow" },
+    ["Saiyan"] = { Speed = "Fast" },
+    ["Monarch"] = { Speed = "Slow" },
+    ["Devil"] = { Speed = "Fast" },
+    ["Hashira"] = { Speed = "Fast" },
+    ["Heroic"] = { Speed = "Fast" },
+    ["Conqueror"] = { Speed = "Medium" },
+    ["Warlord"] = { Speed = "Fast" },
+    ["Psychopath"] = { Speed = "Flashing" },
+    ["Manipulator"] = { Speed = "Flashing" },
+    ["Narcissist"] = { Speed = "Fast" },
+    ["Com-God"] = { Speed = "Slow" },
+    ["Disbander"] = { Speed = "Medium" },
+    ["Lover"] = { Speed = "Slow" },
+    ["Malkin"] = { Speed = "Slow", SoftPulse = true },
+    ["Badmosh"] = { Speed = "Fast" },
+    ["Badnam"] = { Speed = "Flashing" },
+    ["Batman"] = { Speed = "Medium" },
+    ["Homelander"] = { Speed = "Slow" },
+    ["Viltramite"] = { Speed = "Medium" },
+    ["Architect"] = { Speed = "Medium" },
+    ["Overseer"] = { Speed = "Medium" },
+    ["Regent of Codes"] = { Speed = "Medium" },
+    ["Regent of Clans"] = { Speed = "Medium" },
+    ["Regent of Havoc"] = { Speed = "Medium" },
+    ["HACKER"] = { Speed = "Fast" },
+}
+
+local ROLE_FONT_SPEED = {
+    Flashing = 0.35,
+    Fast = 0.80,
+    Medium = 1.40,
+    Slow = 2.40,
+}
+
+local function AnimateRoleFont(textObject, roleName, style)
+    if not textObject or not textObject.Parent then return end
+
+    local profile = ROLE_FONT_ANIMATION[roleName]
+    local duration = ROLE_FONT_SPEED[(profile and profile.Speed) or "Medium"] or 1.4
+    local startColor = style.Start
+    local endColor = style.End
+
+    -- TextColor3 is animated rather than using a moving UIGradient, so the
+    -- complete role name changes colour together instead of only a portion.
+    textObject.TextColor3 = startColor
+
+    task.spawn(function()
+        while textObject and textObject.Parent do
+            local toEnd = TweenService:Create(
+                textObject,
+                TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+                {TextColor3 = endColor}
+            )
+            toEnd:Play()
+            toEnd.Completed:Wait()
+            if not textObject or not textObject.Parent then break end
+
+            local toStart = TweenService:Create(
+                textObject,
+                TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+                {TextColor3 = startColor}
+            )
+            toStart:Play()
+            toStart.Completed:Wait()
+        end
+    end)
+
+    -- Malkin keeps the requested feminine/soft exception with a subtle glow
+    -- pulse layered on top of the colour transition.
+    if profile and profile.SoftPulse then
+        task.spawn(function()
+            while textObject and textObject.Parent do
+                local pulseOut = TweenService:Create(
+                    textObject,
+                    TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+                    {TextTransparency = 0.12}
+                )
+                pulseOut:Play()
+                pulseOut.Completed:Wait()
+                if not textObject or not textObject.Parent then break end
+
+                local pulseIn = TweenService:Create(
+                    textObject,
+                    TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+                    {TextTransparency = 0}
+                )
+                pulseIn:Play()
+                pulseIn.Completed:Wait()
+            end
+        end)
+    end
+end
 
 local ALL_AUTOCOMPLETE_OPTIONS = { "!tag", "!role", "!spoof", "/w " }
 local CurrentContextMessage = nil
@@ -1594,6 +1704,7 @@ local function PopulateTagBar()
         tagBtn.TextColor3 = style.Start
         tagBtn.TextSize = 10
         tagBtn.Parent = TagScrollFrame
+        AnimateRoleFont(tagBtn, roleName, style)
 
         local tagCorner = Instance.new("UICorner")
         tagCorner.CornerRadius = UDim.new(0, 6)
@@ -1834,9 +1945,22 @@ PrivateModePill.Parent = InputBarFrame
 local privatePillCorner = Instance.new("UICorner")
 privatePillCorner.CornerRadius = UDim.new(0, 8)
 privatePillCorner.Parent = PrivateModePill
-PrivateModePill.MouseButton1Click:Connect(function()
+local function DisablePrivateModeFromPill()
     ClearPersistentPrivatePrefix()
-    MessageInput:CaptureFocus()
+    if MessageInput then
+        MessageInput:CaptureFocus()
+        MessageInput.CursorPosition = 1
+    end
+end
+
+PrivateModePill.Active = true
+PrivateModePill.Selectable = false
+PrivateModePill.MouseButton1Click:Connect(DisablePrivateModeFromPill)
+PrivateModePill.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        DisablePrivateModeFromPill()
+    end
 end)
 
 local ReplyStatusLabel = Instance.new("TextButton")
@@ -1971,6 +2095,7 @@ local function RefreshPrivateModeUI()
     PrivateModePill.Visible = active
     if active then
         PrivateModePill.Text = "PVT • " .. TruncateText(PrivateModeTargetDisplayName or "Private", 16) .. "  ×"
+        PrivateModePill.ZIndex = 100
     end
 end
 
@@ -2197,9 +2322,7 @@ local function CreateMessageCard(msgData, isGlobal)
     tagCorner.CornerRadius = UDim.new(0, 4)
     tagCorner.Parent = tagLabel
 
-    local tagGradient = Instance.new("UIGradient")
-    tagGradient.Color = ColorSequence.new(style.Start, style.End)
-    tagGradient.Parent = tagLabel
+    AnimateRoleFont(tagLabel, roleName, style)
 
     local isClient = (msgData.Username == LocalPlayer.Name)
     local formattedName = GetFormattedDisplayName(msgData.DisplayName or msgData.Username, isClient)
