@@ -77,7 +77,7 @@ local GirlPfpList = {
     "132498447517240", "14365830804", "14133573570", "84575585234733", "14740456559"
 }
 
--- Helper function to truncate DisplayName to 20 chars + "..." if over 20 chars
+-- Helper function to truncate DisplayName to 14 chars + "..." if over 15 chars
 local function GetFormattedDisplayName(displayName, isClient)
     if isClient then
         displayName = SpoofedDisplayName or displayName or ""
@@ -85,8 +85,8 @@ local function GetFormattedDisplayName(displayName, isClient)
         displayName = displayName or ""
     end
    
-    if string.len(displayName) > 20 then
-        return string.sub(displayName, 1, 20) .. "..."
+    if string.len(displayName) > 15 then
+        return string.sub(displayName, 1, 14) .. "..."
     end
     return displayName
 end
@@ -465,6 +465,8 @@ local GITHUB_ROLE_LIST_URL = "https://github.com/thedevilondiscord/GC/raw/refs/h
 local GITHUB_RANK_STYLES_URL = "https://raw.githubusercontent.com/thedevilondiscord/GC/refs/heads/main/GC_Roles.json"
 
 local JOIN_SOUND_ID = "rbxassetid://7460825623"
+local NOTIFICATION_SOUND_ID = "rbxassetid://107978604605265"
+local JoinEventId = LocalPlayer.UserId .. "_" .. tostring(os.time()) .. "_" .. tostring(math.random(100000, 999999))
 
 local ActiveTab = "GLOBAL"
 
@@ -1312,19 +1314,42 @@ NotifContainerFrame.ZIndex = 100
 NotifContainerFrame.Parent = ScreenGui
 
 local ActiveNotifBtn = nil
+local ShownNotificationIds = {}
 
-local function DisplayNewMessageNotif(msgData)
+local function PlayNotificationSound(soundId)
+    local sound = Instance.new("Sound")
+    sound.Name = "KronosNotificationSound"
+    sound.SoundId = soundId or NOTIFICATION_SOUND_ID
+    sound.Volume = 0.65
+    sound.Parent = ScreenGui
+    pcall(function() sound:Play() end)
+    sound.Ended:Connect(function()
+        if sound then sound:Destroy() end
+    end)
+    task.delay(8, function()
+        if sound and sound.Parent then sound:Destroy() end
+    end)
+end
+
+local function DisplayNewMessageNotif(msgData, messageId)
+    if not msgData then return end
     if msgData.IsPrivate and msgData.Username ~= LocalPlayer.Name and msgData.TargetUsername ~= LocalPlayer.Name then return end
-    if msgData.Username == LocalPlayer.Name then return end
+    if msgData.Username == LocalPlayer.Name and not msgData.IsJoinMessage then return end
+
+    messageId = tostring(messageId or ((msgData.JoinEventId or "") .. "_" .. (msgData.Timestamp or "") .. "_" .. (msgData.Username or "")))
+    if ShownNotificationIds[messageId] then return end
+    ShownNotificationIds[messageId] = true
 
     local rawName = msgData.DisplayName or msgData.Username or "Unknown"
     local isClient = (msgData.Username == LocalPlayer.Name)
-    local formattedName = TruncateText(GetFormattedDisplayName(rawName, isClient), 20)
+    local formattedName = GetFormattedDisplayName(rawName, isClient)
     local rawText = msgData.Text or ""
-    if string.sub(rawText, 1, 11) == "rbxthumb://" or string.sub(rawText, 1, 13) == "rbxassetid://" then
+    if msgData.IsJoinMessage then
+        rawText = "has Joined the Server Chat"
+    elseif string.sub(rawText, 1, 11) == "rbxthumb://" or string.sub(rawText, 1, 13) == "rbxassetid://" then
         rawText = "[Sticker]"
     end
-    local formattedMsg = TruncateText(rawText, 30)
+    local formattedMsg = TruncateText(rawText, 34)
 
     if ActiveNotifBtn and ActiveNotifBtn.Parent then
         ActiveNotifBtn:Destroy()
@@ -1333,74 +1358,114 @@ local function DisplayNewMessageNotif(msgData)
 
     local notifBtn = Instance.new("TextButton")
     notifBtn.Name = "MessageNotification"
-    notifBtn.Size = UDim2.new(1, 0, 1, 0)
-    notifBtn.Position = UDim2.new(0, 0, -0.5, 0)
+    notifBtn.Size = UDim2.new(0, 360, 0, 54)
+    notifBtn.Position = UDim2.new(0, 0, -1, 0)
+    notifBtn.AnchorPoint = Vector2.new(0, 0)
     notifBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-    notifBtn.BackgroundTransparency = 0.35
+    notifBtn.BackgroundTransparency = 0.22
     notifBtn.BorderSizePixel = 0
-    notifBtn.Font = Enum.Font.GothamBold
-    notifBtn.Text = string.format("💬 %s : %s", formattedName, formattedMsg)
-    notifBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    notifBtn.TextSize = 12
-    notifBtn.TextWrapped = true
+    notifBtn.Text = ""
+    notifBtn.AutoButtonColor = false
     notifBtn.ZIndex = 101
     notifBtn.Parent = NotifContainerFrame
 
     local notifCorner = Instance.new("UICorner")
-    notifCorner.CornerRadius = UDim.new(0, 8)
+    notifCorner.CornerRadius = UDim.new(0, 12)
     notifCorner.Parent = notifBtn
 
     local notifStroke = Instance.new("UIStroke")
-    notifStroke.Thickness = 1.5
-    notifStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    notifStroke.Color = Color3.fromRGB(255, 255, 255)
+    notifStroke.Thickness = 1.8
+    notifStroke.Transparency = 0.1
     notifStroke.Parent = notifBtn
 
     local notifGradient = Instance.new("UIGradient")
-    notifGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 0, 0)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0)),
-    })
+    if msgData.IsJoinMessage then
+        notifGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 0, 0)),
+            ColorSequenceKeypoint.new(0.16, Color3.fromRGB(255, 128, 0)),
+            ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255, 255, 0)),
+            ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0, 255, 0)),
+            ColorSequenceKeypoint.new(0.66, Color3.fromRGB(0, 255, 255)),
+            ColorSequenceKeypoint.new(0.83, Color3.fromRGB(80, 100, 255)),
+            ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 0, 255)),
+        })
+    else
+        notifGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 40, 40)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(20, 20, 30)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 40, 40)),
+        })
+    end
     notifGradient.Parent = notifStroke
+
+    local notifPfp = Instance.new("ImageLabel")
+    notifPfp.Name = "NotificationPFP"
+    notifPfp.Size = UDim2.new(0, 38, 0, 38)
+    notifPfp.Position = UDim2.new(0, 8, 0.5, -19)
+    notifPfp.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    notifPfp.BackgroundTransparency = 0.08
+    notifPfp.Image = "rbxthumb://type=Asset&id=" .. tostring(msgData.PfpId or DefaultPfpId) .. "&w=150&h=150"
+    notifPfp.ZIndex = 102
+    notifPfp.Parent = notifBtn
+
+    local pfpCorner = Instance.new("UICorner")
+    pfpCorner.CornerRadius = UDim.new(1, 0)
+    pfpCorner.Parent = notifPfp
+
+    local pfpStroke = Instance.new("UIStroke")
+    pfpStroke.Thickness = 1.2
+    pfpStroke.Color = msgData.IsJoinMessage and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(255, 55, 55)
+    pfpStroke.Transparency = 0.15
+    pfpStroke.Parent = notifPfp
+
+    local notifText = Instance.new("TextLabel")
+    notifText.Size = UDim2.new(1, -58, 1, -8)
+    notifText.Position = UDim2.new(0, 54, 0, 4)
+    notifText.BackgroundTransparency = 1
+    notifText.Font = Enum.Font.GothamBold
+    notifText.Text = msgData.IsJoinMessage and (formattedName .. " has Joined the Server Chat") or (formattedName .. " : " .. formattedMsg)
+    notifText.TextColor3 = Color3.fromRGB(245, 245, 250)
+    notifText.TextSize = 11
+    notifText.TextWrapped = true
+    notifText.TextXAlignment = Enum.TextXAlignment.Left
+    notifText.TextYAlignment = Enum.TextYAlignment.Center
+    notifText.ZIndex = 102
+    notifText.Parent = notifBtn
 
     task.spawn(function()
         while notifBtn and notifBtn.Parent do
             local dt = RunService.RenderStepped:Wait()
-            notifGradient.Rotation = (notifGradient.Rotation + (60 * dt)) % 360
+            notifGradient.Rotation = (notifGradient.Rotation + (65 * dt)) % 360
         end
     end)
 
     ActiveNotifBtn = notifBtn
+    PlayNotificationSound(msgData.IsJoinMessage and JOIN_SOUND_ID or NOTIFICATION_SOUND_ID)
 
-    TweenService:Create(notifBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(notifBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
         Position = UDim2.new(0, 0, 0, 0)
     }):Play()
 
     task.delay(3.5, function()
         if ActiveNotifBtn == notifBtn and notifBtn and notifBtn.Parent then
             ActiveNotifBtn = nil
-            local slideOut = TweenService:Create(notifBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            local slideOut = TweenService:Create(notifBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
                 Position = UDim2.new(0, 0, -1, 0)
             })
             slideOut:Play()
             slideOut.Completed:Wait()
-            if notifBtn and notifBtn.Parent then
-                notifBtn:Destroy()
-            end
+            if notifBtn and notifBtn.Parent then notifBtn:Destroy() end
         end
     end)
 
-    notifBtn.MouseButton1Click:Connect(function()
+    notifBtn.Activated:Connect(function()
         if ActiveNotifBtn == notifBtn then ActiveNotifBtn = nil end
         local slideOut = TweenService:Create(notifBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
             Position = UDim2.new(0, 0, -1, 0)
         })
         slideOut:Play()
         slideOut.Completed:Wait()
-        if notifBtn and notifBtn.Parent then
-            notifBtn:Destroy()
-        end
+        if notifBtn and notifBtn.Parent then notifBtn:Destroy() end
     end)
 end
 
@@ -2473,6 +2538,46 @@ end
 -- ============================================================================
 -- FIREBASE POLLING & SENDING LOGIC
 -- ============================================================================
+local function ShowLocalSystemMessage(text, isError)
+    local msg = {
+        Username = LocalPlayer.Name,
+        DisplayName = "AI MoD",
+        Text = tostring(text),
+        Timestamp = os.time() + (math.random() / 1000),
+        Role = "Recruit",
+        PfpId = CurrentPfpId,
+        IsPrivate = false,
+        SystemMessage = true,
+        LocalOnly = true,
+    }
+
+    local card = CreateMessageCard(msg, ActiveTab == "GLOBAL")
+    card:SetAttribute("LocalOnly", true)
+    card.Visible = true
+
+    local content = card:FindFirstChild("ContentLabel")
+    if content and isError then
+        content.TextColor3 = Color3.fromRGB(255, 105, 105)
+    end
+end
+
+local function ShowAntiSpamMessage()
+    ShowLocalSystemMessage("[AI MoD] : Deep breath in, deep breath out. Now, please stop spamming 😣", true)
+end
+
+local function TestNotification()
+    local testId = "LOCAL_TEST_NOTIFICATION_" .. tostring(os.clock()) .. "_" .. tostring(math.random(1000, 9999))
+    DisplayNewMessageNotif({
+        Username = "__KronosNotificationTest",
+        DisplayName = "Kronos Test",
+        Text = "Notification test — if you see this, notifications are working.",
+        Timestamp = os.time(),
+        Role = "Recruit",
+        PfpId = CurrentPfpId,
+        IsPrivate = false,
+    }, testId)
+end
+
 SendChatMessage = function()
     local text = MessageInput.Text
     if text == "" or text:match("^%s*$") then return end
@@ -2496,38 +2601,82 @@ SendChatMessage = function()
         if not privateTargetUsername then return end
     end
 
-    if not isPrivate and string.sub(text, 1, 5) == "!tag " then
+    if not isPrivate and text == "!testnotif" then
+        TestNotification()
+        ShowLocalSystemMessage("[AI MoD] : Notification test triggered successfully ✓")
+        MessageInput.Text = ""
+        return
+    elseif not isPrivate and string.sub(text, 1, 5) == "!tag " then
         local newRole = string.sub(text, 6)
         local allowedRoles = AvailableUserRoles[LocalPlayer.Name] or {}
         local isAdmin = HasAdminPermission(LocalPlayer.Name)
         if table.find(allowedRoles, newRole) or isAdmin or RANK_STYLES[newRole] then
             AssignedPlayerRoles[LocalPlayer.Name] = newRole
             DisabledTags[LocalPlayer.Name] = nil
+            ShowLocalSystemMessage("[AI MoD] : Tag changed successfully to " .. newRole .. " ✓")
+        else
+            ShowLocalSystemMessage("[AI MoD] : Command failed. You do not have permission for '" .. newRole .. "'.", true)
         end
         MessageInput.Text = ""
         return
     elseif not isPrivate and text == "!tag" then
         DisabledTags[LocalPlayer.Name] = not DisabledTags[LocalPlayer.Name]
+        ShowLocalSystemMessage("[AI MoD] : Tag display " .. (DisabledTags[LocalPlayer.Name] and "disabled" or "enabled") .. " ✓")
+        MessageInput.Text = ""
+        return
+    elseif not isPrivate and string.sub(text, 1, 6) == "!role " then
+        local args = string.split(string.sub(text, 7), " ")
+        if #args >= 2 and HasAdminPermission(LocalPlayer.Name) then
+            local targetUser = args[1]
+            local targetRole = table.concat(args, " ", 2)
+            if Players:FindFirstChild(targetUser) and RANK_STYLES[targetRole] then
+                AssignedPlayerRoles[targetUser] = targetRole
+                ShowLocalSystemMessage("[AI MoD] : Role assigned successfully: " .. targetUser .. " → " .. targetRole .. " ✓")
+            else
+                ShowLocalSystemMessage("[AI MoD] : Command failed. Invalid player or role.", true)
+            end
+        else
+            ShowLocalSystemMessage("[AI MoD] : Command failed. You do not have permission to use !role.", true)
+        end
+        MessageInput.Text = ""
+        return
+    elseif not isPrivate and text == "!role" then
+        ShowLocalSystemMessage("[AI MoD] : Command failed. Usage: !role [PlayerName] [RoleName].", true)
         MessageInput.Text = ""
         return
     elseif not isPrivate and string.sub(text, 1, 7) == "!spoof " then
         if CanUseSpoof(LocalPlayer.Name) then
             SpoofedDisplayName = string.sub(text, 8)
+            ShowLocalSystemMessage("[AI MoD] : Display name changed successfully ✓")
+        else
+            ShowLocalSystemMessage("[AI MoD] : Command failed. You do not have permission to use !spoof.", true)
         end
+        MessageInput.Text = ""
+        return
+    elseif not isPrivate and text == "!spoof" then
+        ShowLocalSystemMessage("[AI MoD] : Command failed. Usage: !spoof [NewName].", true)
+        MessageInput.Text = ""
+        return
+    elseif not isPrivate and string.sub(text, 1, 1) == "!" then
+        ShowLocalSystemMessage("[AI MoD] : Unknown command. Command failed.", true)
         MessageInput.Text = ""
         return
     end
 
+    -- First two identical messages are allowed; the third and every later
+    -- identical message in the consecutive run is blocked locally.
     local now = tick()
-    if text == LastSentMessageText and (now - LastMessageSendTime) < 3 then
+    if text == LastSentMessageText and (now - LastMessageSendTime) <= 30 then
         ConsecutiveSpamCount = ConsecutiveSpamCount + 1
-        if ConsecutiveSpamCount >= 3 then
-            MessageInput.Text = PersistentPvtPrefix
-            MessageInput.CursorPosition = #MessageInput.Text + 1
-            return
-        end
     else
-        ConsecutiveSpamCount = 0
+        ConsecutiveSpamCount = 1
+    end
+
+    if ConsecutiveSpamCount >= 3 then
+        ShowAntiSpamMessage()
+        MessageInput.Text = PersistentPvtPrefix
+        MessageInput.CursorPosition = #MessageInput.Text + 1
+        return
     end
 
     LastSentMessageText = text
@@ -2571,6 +2720,39 @@ MessageInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then SendChatMessage() end
 end)
 
+local function BuildJoinMessagePayload()
+    return {
+        Username = LocalPlayer.Name,
+        DisplayName = GetFormattedDisplayName(LocalPlayer.DisplayName, true),
+        Text = "has Joined the Server Chat",
+        Timestamp = os.time(),
+        Role = GetAssignedOrCalculatedRole(LocalPlayer.Name),
+        PfpId = CurrentPfpId,
+        IsPrivate = false,
+        IsJoinMessage = true,
+        JoinEventId = JoinEventId,
+    }
+end
+
+local function ShowLocalJoinMessage()
+    local payload = BuildJoinMessagePayload()
+    local localId = "local_join_" .. JoinEventId
+
+    -- Immediate local render: the joining client does not wait for Firebase.
+    ServerCachedMessages[localId] = payload
+    local card = CreateMessageCard(payload, false)
+    card.Visible = (ActiveTab == "SERVER")
+    table.insert(ServerUIElements, card)
+    DisplayNewMessageNotif(payload, localId)
+end
+
+local function PostServerJoinMessage()
+    local payload = BuildJoinMessagePayload()
+    task.spawn(function()
+        HttpRequest(SERVER_MESSAGES_ENDPOINT, "POST", payload)
+    end)
+end
+
 local function PollMessages()
     while true do
         FetchRemoteRankStyles()
@@ -2594,7 +2776,9 @@ local function PollMessages()
         local serverData = HttpRequest(SERVER_MESSAGES_ENDPOINT, "GET")
         if serverData and type(serverData) == "table" then
             for id, msg in pairs(serverData) do
-                if type(msg) == "table" and msg.Timestamp and msg.Timestamp >= ScriptStartTime and (not msg.IsPrivate or msg.Username == LocalPlayer.Name or msg.TargetUsername == LocalPlayer.Name) then
+                if type(msg) == "table" and msg.JoinEventId == JoinEventId then
+                    -- Already rendered locally.
+                elseif type(msg) == "table" and msg.Timestamp and msg.Timestamp >= ScriptStartTime and (not msg.IsPrivate or msg.Username == LocalPlayer.Name or msg.TargetUsername == LocalPlayer.Name) then
                     if not ServerCachedMessages[id] then
                         ServerCachedMessages[id] = msg
                         local card = CreateMessageCard(msg, false)
@@ -2609,5 +2793,12 @@ local function PollMessages()
         task.wait(2)
     end
 end
+
+task.spawn(function()
+    task.wait(0.5)
+    ShowLocalJoinMessage()
+    task.wait(0.25)
+    PostServerJoinMessage()
+end)
 
 task.spawn(PollMessages)
