@@ -2802,3 +2802,33 @@ task.spawn(function()
 end)
 
 task.spawn(PollMessages)
+
+-- KRONOS PVT TEXT GUARD
+-- Removing the generated /pvt @xxxxxxxx prefix manually is treated as an
+-- explicit request to leave private-message mode.
+if MessageInput then
+    MessageInput:GetPropertyChangedSignal("Text"):Connect(function()
+        if PvpModeActive and PrivateTargetName then
+            local prefix = "/pvt @" .. string.sub(PrivateTargetName, 1, 8) .. " "
+            local current = MessageInput.Text or ""
+            if current == "" or current:sub(1, #prefix):lower() ~= prefix:lower() then
+                PvpModeActive = false
+                PrivateTargetName = nil
+                if PvpModeBar then
+                    PvpModeBar.Visible = false
+                end
+                MessageInput.Text = ""
+            end
+        end
+    end)
+end
+
+-- TEST COMMANDS:
+-- !notify  = notification GUI/audio/PFP test
+-- !joined  = rainbow server-join message test
+
+-- ARCHITECT / OVERSEER SPOOF PROTECTION
+local function KronosProtectedSpoofRole(name)
+    name = tostring(name or ""):lower()
+    return name == "architect" or name == "overseer"
+end
