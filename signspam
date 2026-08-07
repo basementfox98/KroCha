@@ -920,7 +920,8 @@ local RESTRICTED_TAG_ROLES = {
 
 local function GetRestrictedTagRoleName(roleName)
     if type(roleName) ~= "string" then return nil end
-    return RESTRICTED_TAG_ROLES[string.lower(roleName)]
+    local normalized = string.lower((roleName:gsub("^%s+", ""):gsub("%s+$", "")))
+    return RESTRICTED_TAG_ROLES[normalized]
 end
 
 local function HasRestrictedTagPermission(username, roleName)
@@ -934,18 +935,30 @@ local function HasRestrictedTagPermission(username, roleName)
         return false, canonicalRole
     end
 
-    -- Always validate against the role list itself. The player must have
-    -- BOTH the exact Username and the exact EncodedId under this role.
-    local encodedId = EncodePlayerId(playerObj.UserId)
+    -- The EncodedId is derived from the live UserId: first 5 digits moved
+    -- to the end, then 0 appended. Both fields must match the same entry.
+    local encodedId = tostring(EncodePlayerId(playerObj.UserId))
+    local usernameText = tostring(username)
+
     local entries = RestrictedTagRoleEntries[canonicalRole] or {}
-
     for _, entry in ipairs(entries) do
-        local listedUsername = tostring(entry.Username or "")
-        local listedEncodedId = tostring(entry.EncodedId or "")
-
-        if listedUsername == tostring(username)
-            and listedEncodedId == tostring(encodedId) then
+        if tostring(entry.Username or "") == usernameText
+            and tostring(entry.EncodedId or "") == encodedId then
             return true, canonicalRole
+        end
+    end
+
+    -- Do not depend on capitalization of the role key in the remote list.
+    for listedRoleName, listedEntries in pairs(RestrictedTagRoleEntries) do
+        if type(listedRoleName) == "string"
+            and string.lower(listedRoleName) == string.lower(canonicalRole)
+            and type(listedEntries) == "table" then
+            for _, entry in ipairs(listedEntries) do
+                if tostring(entry.Username or "") == usernameText
+                    and tostring(entry.EncodedId or "") == encodedId then
+                    return true, canonicalRole
+                end
+            end
         end
     end
 
