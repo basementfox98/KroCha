@@ -2011,10 +2011,10 @@ local privatePillCorner = Instance.new("UICorner")
 privatePillCorner.CornerRadius = UDim.new(0, 8)
 privatePillCorner.Parent = PrivateModePill
 local function DisablePrivateModeFromPill()
+    -- Explicit PVT OFF control. No textbox parsing is involved.
     ClearPersistentPrivatePrefix()
     if MessageInput then
         MessageInput:CaptureFocus()
-        MessageInput.CursorPosition = 1
     end
 end
 
@@ -2154,25 +2154,34 @@ local function ResolvePrivateRecipient(prefix)
     return nil
 end
 
-local function RefreshPrivateModeUI()
-    if not PrivateModePill then return end
-    local active = PersistentPvtPrefix ~= ""
-    PrivateModePill.Visible = active
-    if active then
-        PrivateModePill.Text = "PVT • " .. TruncateText(PrivateModeTargetDisplayName or "Private", 16) .. "  ×"
-        PrivateModePill.ZIndex = 100
-    end
+local function IsPrivateModeActive()
+    return PrivateModeTargetUsername ~= nil and PrivateModeTargetDisplayName ~= nil
 end
 
+local function RefreshPrivateModeUI()
+    if not PrivateModePill then return end
+    local active = IsPrivateModeActive()
+    PrivateModePill.Visible = active
+    PrivateModePill.Text = active
+        and ("PVT • " .. TruncateText(PrivateModeTargetDisplayName or "Private", 16) .. "  ×")
+        or ""
+    PrivateModePill.ZIndex = 100
+end
+
+-- New PVT mechanism:
+-- The /pvt command is NOT stored inside the TextBox anymore.
+-- PVT state lives entirely in these two variables. The pill is the explicit
+-- mode indicator/control and the textbox remains a normal editable textbox.
 local function SetPersistentPrivatePrefix(displayName, username)
     local safeName = tostring(displayName or username or "Unknown")
-    local first8 = string.sub(safeName, 1, 8)
-    PersistentPvtPrefix = "/pvt @" .. first8 .. " "
     PrivateModeTargetUsername = username
     PrivateModeTargetDisplayName = safeName
-    MessageInput.Text = PersistentPvtPrefix
-    MessageInput.CursorPosition = #MessageInput.Text + 1
-    MessageInput:CaptureFocus()
+    PersistentPvtPrefix = "/pvt @" .. string.sub(safeName, 1, 8) .. " "
+    if MessageInput then
+        MessageInput.Text = ""
+        MessageInput.CursorPosition = 1
+        MessageInput:CaptureFocus()
+    end
     RefreshPrivateModeUI()
 end
 
@@ -2180,8 +2189,10 @@ local function ClearPersistentPrivatePrefix()
     PersistentPvtPrefix = ""
     PrivateModeTargetUsername = nil
     PrivateModeTargetDisplayName = nil
-    MessageInput.Text = ""
-    MessageInput.CursorPosition = 1
+    if MessageInput then
+        MessageInput.Text = ""
+        MessageInput.CursorPosition = 1
+    end
     RefreshPrivateModeUI()
 end
 
@@ -2579,38 +2590,44 @@ local function TestNotification()
 end
 
 SendChatMessage = function()
-    local text = MessageInput.Text
-    if text == "" or text:match("^%s*$") then return end
+    local typedText = MessageInput.Text or ""
+    if typedText == "" or typedText:match("^%s*$") then return end
 
-    local isPrivate = PersistentPvtPrefix ~= ""
+    local isPrivate = IsPrivateModeActive()
     local privateTargetUsername = PrivateModeTargetUsername
     local privateTargetDisplayName = PrivateModeTargetDisplayName
-    local privateBody = text
+    local privateBody = typedText
 
+    -- PVT is determined only by the stored recipient state.
+    -- There is no special prefix in the TextBox to delete or accidentally edit.
     if isPrivate then
-        -- Never let focus/clicking inside the TextBox cancel the prefix.
-        if string.sub(text, 1, #PersistentPvtPrefix) ~= PersistentPvtPrefix then
-            text = PersistentPvtPrefix .. text
-        end
-        privateBody = string.sub(text, #PersistentPvtPrefix + 1)
-        if privateBody:match("^%s*$") then return end
-        if not privateTargetUsername then
-            local prefix = string.sub(PersistentPvtPrefix, 7, -2)
-            privateTargetUsername, privateTargetDisplayName = ResolvePrivateRecipient(prefix)
-        end
         if not privateTargetUsername then return end
+        privateBody = typedText
+        if privateBody:match("^%s*$") then return end
     end
 
-    if not isPrivate and text == "!testnotif" then
+    if not isPrivate and typedText == "!testnotif" then
         TestNotification()
         ShowLocalSystemMessage("[AI MoD] : Notification test triggered successfully ✓")
         MessageInput.Text = ""
         return
-    elseif not isPrivate and string.sub(text, 1, 5) == "!tag " then
-        local newRole = string.sub(text, 6)
+    elseif not isPrivate and typedText == "!notify" then
+        TestNotification()
+        ShowLocalSystemMessage("[AI MoD] : Notification test triggered successfully ✓")
+        MessageInput.Text = ""
+        return
+    elseif not isPrivate and typedText == "!joined" then
+        ShowLocalJoinMessage()
+        ShowLocalSystemMessage("[AI MoD] : Join-message test triggered successfully ✓")
+        MessageInput.Text = ""
+        return
+    elseif not isPrivate and string.sub(typedText, 1, 5) == "!tag " then
+        local newRole = string.sub(typedText, 6)
         local allowedRoles = AvailableUserRoles[LocalPlayer.Name] or {}
         local isAdmin = HasAdminPermission(LocalPlayer.Name)
-        if table.find(allowedRoles, newRole) or isAdmin or RANK_STYLES[newRole] then
+        if string.lower(newRole) == "architect" or string.lower(newRole) == "overseer" then
+            ShowLocalSystemMessage("[AI MoD] : Command failed. Architect and Overseer cannot be spoofed.", true)
+        elseif table.find(allowedRoles, newRole) or isAdmin or RANK_STYLES[newRole] then
             AssignedPlayerRoles[LocalPlayer.Name] = newRole
             DisabledTags[LocalPlayer.Name] = nil
             ShowLocalSystemMessage("[AI MoD] : Tag changed successfully to " .. newRole .. " ✓")
@@ -2619,13 +2636,13 @@ SendChatMessage = function()
         end
         MessageInput.Text = ""
         return
-    elseif not isPrivate and text == "!tag" then
+    elseif not isPrivate and typedText == "!tag" then
         DisabledTags[LocalPlayer.Name] = not DisabledTags[LocalPlayer.Name]
         ShowLocalSystemMessage("[AI MoD] : Tag display " .. (DisabledTags[LocalPlayer.Name] and "disabled" or "enabled") .. " ✓")
         MessageInput.Text = ""
         return
-    elseif not isPrivate and string.sub(text, 1, 6) == "!role " then
-        local args = string.split(string.sub(text, 7), " ")
+    elseif not isPrivate and string.sub(typedText, 1, 6) == "!role " then
+        local args = string.split(string.sub(typedText, 7), " ")
         if #args >= 2 and HasAdminPermission(LocalPlayer.Name) then
             local targetUser = args[1]
             local targetRole = table.concat(args, " ", 2)
@@ -2640,33 +2657,37 @@ SendChatMessage = function()
         end
         MessageInput.Text = ""
         return
-    elseif not isPrivate and text == "!role" then
+    elseif not isPrivate and typedText == "!role" then
         ShowLocalSystemMessage("[AI MoD] : Command failed. Usage: !role [PlayerName] [RoleName].", true)
         MessageInput.Text = ""
         return
-    elseif not isPrivate and string.sub(text, 1, 7) == "!spoof " then
-        if CanUseSpoof(LocalPlayer.Name) then
-            SpoofedDisplayName = string.sub(text, 8)
+    elseif not isPrivate and string.sub(typedText, 1, 7) == "!spoof " then
+        local requested = string.sub(typedText, 8)
+        local lowered = string.lower(requested)
+        if lowered == "architect" or lowered == "overseer" then
+            ShowLocalSystemMessage("[AI MoD] : Command failed. Architect and Overseer cannot be spoofed.", true)
+        elseif CanUseSpoof(LocalPlayer.Name) then
+            SpoofedDisplayName = requested
             ShowLocalSystemMessage("[AI MoD] : Display name changed successfully ✓")
         else
             ShowLocalSystemMessage("[AI MoD] : Command failed. You do not have permission to use !spoof.", true)
         end
         MessageInput.Text = ""
         return
-    elseif not isPrivate and text == "!spoof" then
+    elseif not isPrivate and typedText == "!spoof" then
         ShowLocalSystemMessage("[AI MoD] : Command failed. Usage: !spoof [NewName].", true)
         MessageInput.Text = ""
         return
-    elseif not isPrivate and string.sub(text, 1, 1) == "!" then
+    elseif not isPrivate and string.sub(typedText, 1, 1) == "!" then
         ShowLocalSystemMessage("[AI MoD] : Unknown command. Command failed.", true)
         MessageInput.Text = ""
         return
     end
 
-    -- First two identical messages are allowed; the third and every later
-    -- identical message in the consecutive run is blocked locally.
+    -- Anti-spam applies to the actual message body, not the hidden PVT state.
+    local spamText = privateBody
     local now = tick()
-    if text == LastSentMessageText and (now - LastMessageSendTime) <= 30 then
+    if spamText == LastSentMessageText and (now - LastMessageSendTime) <= 30 then
         ConsecutiveSpamCount = ConsecutiveSpamCount + 1
     else
         ConsecutiveSpamCount = 1
@@ -2674,16 +2695,18 @@ SendChatMessage = function()
 
     if ConsecutiveSpamCount >= 3 then
         ShowAntiSpamMessage()
-        MessageInput.Text = PersistentPvtPrefix
-        MessageInput.CursorPosition = #MessageInput.Text + 1
+        MessageInput.Text = ""
         return
     end
 
-    LastSentMessageText = text
+    LastSentMessageText = spamText
     LastMessageSendTime = now
 
     local reply = ReplyContextMessage
+    local clientMessageId = LocalPlayer.UserId .. "_" .. tostring(math.floor(os.clock() * 1000000)) .. "_" .. tostring(math.random(100000, 999999))
+
     local payload = {
+        ClientMessageId = clientMessageId,
         Username = LocalPlayer.Name,
         DisplayName = GetFormattedDisplayName(LocalPlayer.DisplayName, true),
         Text = privateBody,
@@ -2699,19 +2722,32 @@ SendChatMessage = function()
         ReplyToTimestamp = reply and reply.Timestamp or nil
     }
 
-    local targetUrl = (ActiveTab == "GLOBAL") and GLOBAL_MESSAGES_ENDPOINT or SERVER_MESSAGES_ENDPOINT
+    -- Render immediately. The UI no longer waits for Firebase at all.
+    local localCache = (ActiveTab == "GLOBAL") and GlobalCachedMessages or ServerCachedMessages
+    local localUI = (ActiveTab == "GLOBAL") and GlobalUIElements or ServerUIElements
+    local localKey = "local_" .. clientMessageId
 
-    if isPrivate then
-        MessageInput.Text = PersistentPvtPrefix
-        MessageInput.CursorPosition = #MessageInput.Text + 1
-    else
-        MessageInput.Text = ""
-    end
+    localCache[localKey] = payload
+    local immediateCard = CreateMessageCard(payload, ActiveTab == "GLOBAL")
+    immediateCard.Visible = true
+    table.insert(localUI, immediateCard)
+
+    MessageInput.Text = ""
     ReplyContextMessage = nil
     RefreshReplyUI()
 
+    -- Firebase persistence is asynchronous and starts immediately after the
+    -- local render. A deterministic client id lets polling recognize the
+    -- same message and prevents a second copy from appearing.
+    local targetUrl = (ActiveTab == "GLOBAL") and GLOBAL_MESSAGES_ENDPOINT or SERVER_MESSAGES_ENDPOINT
     task.spawn(function()
-        HttpRequest(targetUrl, "POST", payload)
+        local ok = pcall(function()
+            HttpRequest(targetUrl, "POST", payload)
+        end)
+        if not ok then
+            -- Keep the already-rendered local message; Firebase failure does
+            -- not make the chat feel delayed or erase the user's message.
+        end
     end)
 end
 
@@ -2762,7 +2798,10 @@ local function PollMessages()
         if globalData and type(globalData) == "table" then
             for id, msg in pairs(globalData) do
                 if type(msg) == "table" and msg.Timestamp and msg.Timestamp >= ScriptStartTime and (not msg.IsPrivate or msg.Username == LocalPlayer.Name or msg.TargetUsername == LocalPlayer.Name) then
-                    if not GlobalCachedMessages[id] then
+                    local clientKey = msg.ClientMessageId and ("local_" .. tostring(msg.ClientMessageId)) or nil
+                    if clientKey and GlobalCachedMessages[clientKey] then
+                        GlobalCachedMessages[id] = msg
+                    elseif not GlobalCachedMessages[id] then
                         GlobalCachedMessages[id] = msg
                         local card = CreateMessageCard(msg, true)
                         card.Visible = (ActiveTab == "GLOBAL")
@@ -2779,7 +2818,10 @@ local function PollMessages()
                 if type(msg) == "table" and msg.JoinEventId == JoinEventId then
                     -- Already rendered locally.
                 elseif type(msg) == "table" and msg.Timestamp and msg.Timestamp >= ScriptStartTime and (not msg.IsPrivate or msg.Username == LocalPlayer.Name or msg.TargetUsername == LocalPlayer.Name) then
-                    if not ServerCachedMessages[id] then
+                    local clientKey = msg.ClientMessageId and ("local_" .. tostring(msg.ClientMessageId)) or nil
+                    if clientKey and ServerCachedMessages[clientKey] then
+                        ServerCachedMessages[id] = msg
+                    elseif not ServerCachedMessages[id] then
                         ServerCachedMessages[id] = msg
                         local card = CreateMessageCard(msg, false)
                         card.Visible = (ActiveTab == "SERVER")
@@ -2803,29 +2845,6 @@ end)
 
 task.spawn(PollMessages)
 
--- KRONOS PVT TEXT GUARD
--- Removing the generated /pvt @xxxxxxxx prefix manually is treated as an
--- explicit request to leave private-message mode.
-if MessageInput then
-    MessageInput:GetPropertyChangedSignal("Text"):Connect(function()
-        if PvpModeActive and PrivateTargetName then
-            local prefix = "/pvt @" .. string.sub(PrivateTargetName, 1, 8) .. " "
-            local current = MessageInput.Text or ""
-            if current == "" or current:sub(1, #prefix):lower() ~= prefix:lower() then
-                PvpModeActive = false
-                PrivateTargetName = nil
-                if PvpModeBar then
-                    PvpModeBar.Visible = false
-                end
-                MessageInput.Text = ""
-            end
-        end
-    end)
-end
-
--- TEST COMMANDS:
--- !notify  = notification GUI/audio/PFP test
--- !joined  = rainbow server-join message test
 
 -- ARCHITECT / OVERSEER SPOOF PROTECTION
 local function KronosProtectedSpoofRole(name)
