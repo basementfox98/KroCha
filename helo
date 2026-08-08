@@ -474,55 +474,57 @@ local ActiveTab = "GLOBAL"
 -- STICKER REGISTRY
 -- ============================================================================
 -- ============================================================================
--- PERSISTENT LOCAL STICKERS
+-- LOCAL PERSISTENT STICKERS (ADDITIVE FEATURE)
 -- ============================================================================
-local CUSTOM_STICKERS_SAVE_KEY = "Kronos_CustomStickers"
+local KronosCustomStickerFile = "Kronos_Custom_Stickers.txt"
+local KronosCustomStickers = {}
 
-local function LoadPersistentCustomStickers()
-    local saved = {}
+local function LoadKronosCustomStickers()
+    if not (readfile and isfile) then return end
+    if not isfile(KronosCustomStickerFile) then return end
 
-    if readfile and isfile and isfile(CUSTOM_STICKERS_SAVE_KEY .. ".txt") then
-        local ok, raw = pcall(function()
-            return readfile(CUSTOM_STICKERS_SAVE_KEY .. ".txt")
-        end)
+    local ok, raw = pcall(function()
+        return readfile(KronosCustomStickerFile)
+    end)
+    if not ok or not raw or raw == "" then return end
 
-        if ok and raw and raw ~= "" then
-            local decodeOk, decoded = pcall(function()
-                return HttpService:JSONDecode(raw)
-            end)
+    local decodeOk, decoded = pcall(function()
+        return HttpService:JSONDecode(raw)
+    end)
 
-            if decodeOk and type(decoded) == "table" then
-                for _, stickerId in ipairs(decoded) do
-                    if type(stickerId) == "string" and stickerId ~= "" and not table.find(saved, stickerId) then
-                        table.insert(saved, stickerId)
-                    end
-                end
+    if decodeOk and type(decoded) == "table" then
+        for _, stickerId in ipairs(decoded) do
+            if type(stickerId) == "string" and stickerId ~= "" and not table.find(KronosCustomStickers, stickerId) then
+                table.insert(KronosCustomStickers, stickerId)
             end
         end
     end
-
-    return saved
 end
 
-local PersistentCustomStickers = LoadPersistentCustomStickers()
-
-local function SavePersistentCustomStickers()
-    if writefile then
-        pcall(function()
-            writefile(CUSTOM_STICKERS_SAVE_KEY .. ".txt", HttpService:JSONEncode(PersistentCustomStickers))
-        end)
-    end
+local function SaveKronosCustomStickers()
+    if not writefile then return end
+    pcall(function()
+        writefile(KronosCustomStickerFile, HttpService:JSONEncode(KronosCustomStickers))
+    end)
 end
 
-local function NormalizeStickerId(value)
+local function ConvertKronosStickerId(value)
     value = tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if value == "" then return nil end
 
-    local numericId = value:match("^%d+$") or value:match("(%d+)")
-    if not numericId then return nil end
+    local id = value:match("^%d+$")
+    if not id then
+        id = value:match("[?&]id=(%d+)")
+    end
+    if not id then
+        id = value:match("(%d+)")
+    end
+    if not id then return nil end
 
-    return "rbxthumb://type=Asset&id=" .. numericId .. "&w=420&h=420"
+    return "rbxthumb://type=Asset&id=" .. id .. "&w=420&h=420"
 end
+
+LoadKronosCustomStickers()
 
 local baseStickers = {
     "rbxthumb://type=Asset&id=125983689093696&w=420&h=420",
@@ -792,7 +794,7 @@ for _, v in ipairs(baseStickers) do
 end
 baseStickers = uniqueStickers
 
-for _, savedSticker in ipairs(PersistentCustomStickers) do
+for _, savedSticker in ipairs(KronosCustomStickers) do
     if not hash[savedSticker] then
         table.insert(baseStickers, savedSticker)
         hash[savedSticker] = true
@@ -1314,30 +1316,35 @@ local AboutTabCorner = Instance.new("UICorner")
 AboutTabCorner.CornerRadius = UDim.new(0, 8)
 AboutTabCorner.Parent = AboutTabBtn
 
-local NotificationMuteButton = Instance.new("TextButton")
-NotificationMuteButton.Name = "NotificationMuteButton"
-NotificationMuteButton.Size = UDim2.new(0, 42, 0, 26)
-NotificationMuteButton.Position = UDim2.new(1, -134, 0, 5)
-NotificationMuteButton.BackgroundColor3 = NotificationsMuted and Color3.fromRGB(75, 75, 90) or Color3.fromRGB(40, 40, 55)
-NotificationMuteButton.BackgroundTransparency = 0.2
-NotificationMuteButton.Font = Enum.Font.GothamBold
-NotificationMuteButton.Text = NotificationsMuted and "MUTED" or "SOUND"
-NotificationMuteButton.TextColor3 = NotificationsMuted and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(220, 220, 230)
-NotificationMuteButton.TextSize = 8
-NotificationMuteButton.AutoButtonColor = false
-NotificationMuteButton.ZIndex = 10
-NotificationMuteButton.Parent = HeaderBar
+local KronosMuteButton = Instance.new("TextButton")
+KronosMuteButton.Name = "KronosMuteButton"
+KronosMuteButton.Size = UDim2.new(0, 34, 0, 24)
+KronosMuteButton.Position = UDim2.new(1, -126, 0, 6)
+KronosMuteButton.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
+KronosMuteButton.BackgroundTransparency = 0.15
+KronosMuteButton.BorderSizePixel = 0
+KronosMuteButton.Font = Enum.Font.GothamBold
+KronosMuteButton.Text = "♫"
+KronosMuteButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+KronosMuteButton.TextSize = 13
+KronosMuteButton.AutoButtonColor = false
+KronosMuteButton.ZIndex = 11
+KronosMuteButton.Parent = HeaderBar
 
-local NotificationMuteCorner = Instance.new("UICorner")
-NotificationMuteCorner.CornerRadius = UDim.new(0, 8)
-NotificationMuteCorner.Parent = NotificationMuteButton
+local KronosMuteCorner = Instance.new("UICorner")
+KronosMuteCorner.CornerRadius = UDim.new(0, 7)
+KronosMuteCorner.Parent = KronosMuteButton
 
-NotificationMuteButton.MouseButton1Click:Connect(function()
-    NotificationsMuted = not NotificationsMuted
-    SaveNotificationMuteState()
-    NotificationMuteButton.Text = NotificationsMuted and "MUTED" or "SOUND"
-    NotificationMuteButton.BackgroundColor3 = NotificationsMuted and Color3.fromRGB(75, 75, 90) or Color3.fromRGB(40, 40, 55)
-    NotificationMuteButton.TextColor3 = NotificationsMuted and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(220, 220, 230)
+local KronosMuteStroke = Instance.new("UIStroke")
+KronosMuteStroke.Thickness = 1
+KronosMuteStroke.Color = Color3.fromRGB(255, 0, 0)
+KronosMuteStroke.Transparency = 0.35
+KronosMuteStroke.Parent = KronosMuteButton
+
+KronosMuteButton.MouseButton1Click:Connect(function()
+    KronosNotificationsMuted = not KronosNotificationsMuted
+    KronosMuteButton.Text = KronosNotificationsMuted and "×♫" or "♫"
+    KronosMuteButton.TextColor3 = KronosNotificationsMuted and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(255, 255, 255)
 end)
 
 local KronosHeaderLabel = Instance.new("TextLabel")
@@ -1519,28 +1526,11 @@ NotifContainerFrame.Parent = ScreenGui
 local ActiveNotifBtn = nil
 local ShownNotificationIds = {}
 
-local NOTIFICATION_MUTE_SAVE_KEY = "Kronos_NotificationMuted"
-local NotificationsMuted = false
-
-if readfile and isfile and isfile(NOTIFICATION_MUTE_SAVE_KEY .. ".txt") then
-    local ok, saved = pcall(function()
-        return readfile(NOTIFICATION_MUTE_SAVE_KEY .. ".txt")
-    end)
-    if ok then
-        NotificationsMuted = saved == "true"
-    end
-end
-
-local function SaveNotificationMuteState()
-    if writefile then
-        pcall(function()
-            writefile(NOTIFICATION_MUTE_SAVE_KEY .. ".txt", NotificationsMuted and "true" or "false")
-        end)
-    end
-end
+-- Additive notification mute state. The existing notification UI remains unchanged.
+local KronosNotificationsMuted = false
 
 local function PlayNotificationSound(soundId)
-    if NotificationsMuted then return end
+    if KronosNotificationsMuted then return end
     local sound = Instance.new("Sound")
     sound.Name = "KronosNotificationSound"
     sound.SoundId = soundId or NOTIFICATION_SOUND_ID
@@ -1736,7 +1726,7 @@ StickerGrid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     StickerScroller.CanvasSize = UDim2.new(0, 0, 0, StickerGrid.AbsoluteContentSize.Y + 12)
 end)
 
-for _, stickerUrl in ipairs(baseStickers) do
+local function AddKronosStickerCard(stickerUrl)
     local stickerCard = Instance.new("ImageButton")
     stickerCard.Name = "StickerCard"
     stickerCard.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
@@ -1763,175 +1753,155 @@ for _, stickerUrl in ipairs(baseStickers) do
             if SendChatMessage then SendChatMessage() end
         end
     end)
+
+    return stickerCard
+end
+
+-- Rebuild only the card creation through the helper; the panel/scroller itself is unchanged.
+for _, stickerUrl in ipairs(baseStickers) do
+    AddKronosStickerCard(stickerUrl)
 end
 
 -- ============================================================================
--- LOCAL STICKER ADD BUTTON
+-- LOCAL STICKER ADD CONTROL
 -- ============================================================================
-local AddStickerButton = Instance.new("TextButton")
-AddStickerButton.Name = "AddStickerButton"
-AddStickerButton.Size = UDim2.new(0, 30, 0, 26)
-AddStickerButton.Position = UDim2.new(1, -36, 0, 4)
-AddStickerButton.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
-AddStickerButton.BackgroundTransparency = 0.1
-AddStickerButton.BorderSizePixel = 0
-AddStickerButton.Font = Enum.Font.GothamBold
-AddStickerButton.Text = "+"
-AddStickerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-AddStickerButton.TextSize = 18
-AddStickerButton.AutoButtonColor = false
-AddStickerButton.ZIndex = 28
-AddStickerButton.Parent = StickerPanel
+local StickerAddButton = Instance.new("TextButton")
+StickerAddButton.Name = "StickerAddButton"
+StickerAddButton.Size = UDim2.new(0, 28, 0, 28)
+StickerAddButton.Position = UDim2.new(1, -34, 0, 4)
+StickerAddButton.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
+StickerAddButton.BackgroundTransparency = 0.05
+StickerAddButton.BorderSizePixel = 0
+StickerAddButton.Font = Enum.Font.GothamBold
+StickerAddButton.Text = "+"
+StickerAddButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+StickerAddButton.TextSize = 17
+StickerAddButton.AutoButtonColor = false
+StickerAddButton.ZIndex = 30
+StickerAddButton.Parent = StickerPanel
 
-local AddStickerCorner = Instance.new("UICorner")
-AddStickerCorner.CornerRadius = UDim.new(0, 8)
-AddStickerCorner.Parent = AddStickerButton
+local StickerAddCorner = Instance.new("UICorner")
+StickerAddCorner.CornerRadius = UDim.new(0, 8)
+StickerAddCorner.Parent = StickerAddButton
 
-local CustomStickerDialog = Instance.new("Frame")
-CustomStickerDialog.Name = "CustomStickerDialog"
-CustomStickerDialog.Size = UDim2.new(0, 300, 0, 150)
-CustomStickerDialog.Position = UDim2.new(0.5, -150, 0.5, -75)
-CustomStickerDialog.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
-CustomStickerDialog.BackgroundTransparency = 0.05
-CustomStickerDialog.BorderSizePixel = 0
-CustomStickerDialog.Visible = false
-CustomStickerDialog.ZIndex = 80
-CustomStickerDialog.Parent = ScreenGui
+local StickerAddStroke = Instance.new("UIStroke")
+StickerAddStroke.Thickness = 1
+StickerAddStroke.Color = Color3.fromRGB(255, 0, 0)
+StickerAddStroke.Transparency = 0.25
+StickerAddStroke.Parent = StickerAddButton
 
-local CustomStickerDialogCorner = Instance.new("UICorner")
-CustomStickerDialogCorner.CornerRadius = UDim.new(0, 12)
-CustomStickerDialogCorner.Parent = CustomStickerDialog
+local StickerAddBox = Instance.new("Frame")
+StickerAddBox.Name = "StickerAddBox"
+StickerAddBox.Size = UDim2.new(0, 240, 0, 82)
+StickerAddBox.Position = UDim2.new(1, -246, 0, 36)
+StickerAddBox.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
+StickerAddBox.BackgroundTransparency = 0.04
+StickerAddBox.BorderSizePixel = 0
+StickerAddBox.Visible = false
+StickerAddBox.ZIndex = 40
+StickerAddBox.Parent = StickerPanel
 
-local CustomStickerDialogStroke = Instance.new("UIStroke")
-CustomStickerDialogStroke.Thickness = 1.8
-CustomStickerDialogStroke.Color = Color3.fromRGB(220, 30, 30)
-CustomStickerDialogStroke.Parent = CustomStickerDialog
+local StickerAddBoxCorner = Instance.new("UICorner")
+StickerAddBoxCorner.CornerRadius = UDim.new(0, 9)
+StickerAddBoxCorner.Parent = StickerAddBox
 
-local CustomStickerTitle = Instance.new("TextLabel")
-CustomStickerTitle.Size = UDim2.new(1, -20, 0, 26)
-CustomStickerTitle.Position = UDim2.new(0, 10, 0, 8)
-CustomStickerTitle.BackgroundTransparency = 1
-CustomStickerTitle.Font = Enum.Font.GothamBold
-CustomStickerTitle.Text = "ADD LOCAL STICKER"
-CustomStickerTitle.TextColor3 = Color3.fromRGB(245, 245, 250)
-CustomStickerTitle.TextSize = 12
-CustomStickerTitle.TextXAlignment = Enum.TextXAlignment.Left
-CustomStickerTitle.ZIndex = 81
-CustomStickerTitle.Parent = CustomStickerDialog
+local StickerAddBoxStroke = Instance.new("UIStroke")
+StickerAddBoxStroke.Thickness = 1.2
+StickerAddBoxStroke.Color = Color3.fromRGB(255, 0, 0)
+StickerAddBoxStroke.Transparency = 0.35
+StickerAddBoxStroke.Parent = StickerAddBox
 
-local CustomStickerInput = Instance.new("TextBox")
-CustomStickerInput.Size = UDim2.new(1, -20, 0, 30)
-CustomStickerInput.Position = UDim2.new(0, 10, 0, 48)
-CustomStickerInput.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-CustomStickerInput.BackgroundTransparency = 0.1
-CustomStickerInput.BorderSizePixel = 0
-CustomStickerInput.ClearTextOnFocus = false
-CustomStickerInput.Font = Enum.Font.Gotham
-CustomStickerInput.PlaceholderText = "Enter Roblox image ID..."
-CustomStickerInput.PlaceholderColor3 = Color3.fromRGB(110, 110, 125)
-CustomStickerInput.Text = ""
-CustomStickerInput.TextColor3 = Color3.fromRGB(240, 240, 245)
-CustomStickerInput.TextSize = 11
-CustomStickerInput.ZIndex = 81
-CustomStickerInput.Parent = CustomStickerDialog
+local StickerAddInput = Instance.new("TextBox")
+StickerAddInput.Name = "StickerAddInput"
+StickerAddInput.Size = UDim2.new(1, -78, 0, 30)
+StickerAddInput.Position = UDim2.new(0, 8, 0, 8)
+StickerAddInput.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+StickerAddInput.BackgroundTransparency = 0.1
+StickerAddInput.BorderSizePixel = 0
+StickerAddInput.ClearTextOnFocus = false
+StickerAddInput.Font = Enum.Font.Gotham
+StickerAddInput.PlaceholderText = "Image ID"
+StickerAddInput.PlaceholderColor3 = Color3.fromRGB(120, 120, 135)
+StickerAddInput.Text = ""
+StickerAddInput.TextColor3 = Color3.fromRGB(240, 240, 245)
+StickerAddInput.TextSize = 11
+StickerAddInput.ZIndex = 41
+StickerAddInput.Parent = StickerAddBox
 
-local CustomStickerInputCorner = Instance.new("UICorner")
-CustomStickerInputCorner.CornerRadius = UDim.new(0, 7)
-CustomStickerInputCorner.Parent = CustomStickerInput
+local StickerAddInputCorner = Instance.new("UICorner")
+StickerAddInputCorner.CornerRadius = UDim.new(0, 7)
+StickerAddInputCorner.Parent = StickerAddInput
 
-local CustomStickerCancel = Instance.new("TextButton")
-CustomStickerCancel.Size = UDim2.new(0, 80, 0, 28)
-CustomStickerCancel.Position = UDim2.new(1, -175, 1, -38)
-CustomStickerCancel.BackgroundColor3 = Color3.fromRGB(45, 45, 58)
-CustomStickerCancel.BorderSizePixel = 0
-CustomStickerCancel.Font = Enum.Font.GothamBold
-CustomStickerCancel.Text = "CANCEL"
-CustomStickerCancel.TextColor3 = Color3.fromRGB(220, 220, 230)
-CustomStickerCancel.TextSize = 10
-CustomStickerCancel.ZIndex = 81
-CustomStickerCancel.Parent = CustomStickerDialog
+local StickerAddSave = Instance.new("TextButton")
+StickerAddSave.Size = UDim2.new(0, 60, 0, 30)
+StickerAddSave.Position = UDim2.new(1, -68, 0, 8)
+StickerAddSave.BackgroundColor3 = Color3.fromRGB(190, 25, 25)
+StickerAddSave.BorderSizePixel = 0
+StickerAddSave.Font = Enum.Font.GothamBold
+StickerAddSave.Text = "SAVE"
+StickerAddSave.TextColor3 = Color3.fromRGB(255, 255, 255)
+StickerAddSave.TextSize = 9
+StickerAddSave.ZIndex = 41
+StickerAddSave.Parent = StickerAddBox
 
-local CustomStickerCancelCorner = Instance.new("UICorner")
-CustomStickerCancelCorner.CornerRadius = UDim.new(0, 7)
-CustomStickerCancelCorner.Parent = CustomStickerCancel
+local StickerAddSaveCorner = Instance.new("UICorner")
+StickerAddSaveCorner.CornerRadius = UDim.new(0, 7)
+StickerAddSaveCorner.Parent = StickerAddSave
 
-local CustomStickerSave = Instance.new("TextButton")
-CustomStickerSave.Size = UDim2.new(0, 80, 0, 28)
-CustomStickerSave.Position = UDim2.new(1, -90, 1, -38)
-CustomStickerSave.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
-CustomStickerSave.BorderSizePixel = 0
-CustomStickerSave.Font = Enum.Font.GothamBold
-CustomStickerSave.Text = "SAVE"
-CustomStickerSave.TextColor3 = Color3.fromRGB(255, 255, 255)
-CustomStickerSave.TextSize = 10
-CustomStickerSave.ZIndex = 81
-CustomStickerSave.Parent = CustomStickerDialog
+local StickerAddStatus = Instance.new("TextLabel")
+StickerAddStatus.Size = UDim2.new(1, -16, 0, 26)
+StickerAddStatus.Position = UDim2.new(0, 8, 0, 45)
+StickerAddStatus.BackgroundTransparency = 1
+StickerAddStatus.Font = Enum.Font.Gotham
+StickerAddStatus.Text = "Enter an image ID and save locally."
+StickerAddStatus.TextColor3 = Color3.fromRGB(160, 160, 175)
+StickerAddStatus.TextSize = 9
+StickerAddStatus.TextXAlignment = Enum.TextXAlignment.Left
+StickerAddStatus.ZIndex = 41
+StickerAddStatus.Parent = StickerAddBox
 
-local CustomStickerSaveCorner = Instance.new("UICorner")
-CustomStickerSaveCorner.CornerRadius = UDim.new(0, 7)
-CustomStickerSaveCorner.Parent = CustomStickerSave
-
-local function CloseCustomStickerDialog()
-    CustomStickerDialog.Visible = false
-    CustomStickerInput.Text = ""
-end
-
-AddStickerButton.MouseButton1Click:Connect(function()
-    CustomStickerDialog.Visible = true
-    CustomStickerInput:CaptureFocus()
+StickerAddButton.MouseButton1Click:Connect(function()
+    StickerAddBox.Visible = not StickerAddBox.Visible
+    if StickerAddBox.Visible then
+        StickerAddInput:CaptureFocus()
+    end
 end)
 
-CustomStickerCancel.MouseButton1Click:Connect(function()
-    CloseCustomStickerDialog()
-end)
-
-CustomStickerSave.MouseButton1Click:Connect(function()
-    local stickerUrl = NormalizeStickerId(CustomStickerInput.Text)
+StickerAddSave.MouseButton1Click:Connect(function()
+    local stickerUrl = ConvertKronosStickerId(StickerAddInput.Text)
 
     if not stickerUrl then
-        CustomStickerInput.Text = ""
+        StickerAddStatus.Text = "Invalid image ID."
+        StickerAddStatus.TextColor3 = Color3.fromRGB(255, 90, 90)
         return
     end
 
-    if not table.find(PersistentCustomStickers, stickerUrl) then
-        table.insert(PersistentCustomStickers, stickerUrl)
-        SavePersistentCustomStickers()
-
-        local stickerCard = Instance.new("ImageButton")
-        stickerCard.Name = "StickerCard"
-        stickerCard.Size = UDim2.new(0, 70, 0, 70)
-        stickerCard.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
-        stickerCard.BackgroundTransparency = 0.3
-        stickerCard.Image = stickerUrl
-        stickerCard.ScaleType = Enum.ScaleType.Fit
-        stickerCard.ZIndex = 27
-        stickerCard.Parent = StickerScroller
-
-        local cardCorner = Instance.new("UICorner")
-        cardCorner.CornerRadius = UDim.new(0, 8)
-        cardCorner.Parent = stickerCard
-
-        local cardStroke = Instance.new("UIStroke")
-        cardStroke.Thickness = 1
-        cardStroke.Color = Color3.fromRGB(255, 255, 255)
-        cardStroke.Transparency = 0.8
-        cardStroke.Parent = stickerCard
-
-        stickerCard.MouseButton1Click:Connect(function()
-            StickerPanel.Visible = false
-            if MessageInput then
-                MessageInput.Text = stickerUrl
-                if SendChatMessage then SendChatMessage() end
-            end
-        end)
+    if table.find(KronosCustomStickers, stickerUrl) then
+        StickerAddStatus.Text = "Already saved."
+        StickerAddStatus.TextColor3 = Color3.fromRGB(255, 210, 80)
+        return
     end
 
-    CloseCustomStickerDialog()
+    table.insert(KronosCustomStickers, stickerUrl)
+    SaveKronosCustomStickers()
+    AddKronosStickerCard(stickerUrl)
+
+    StickerAddInput.Text = ""
+    StickerAddStatus.Text = "Saved locally."
+    StickerAddStatus.TextColor3 = Color3.fromRGB(90, 255, 170)
+
+    task.delay(0.8, function()
+        if StickerAddBox.Parent then
+            StickerAddBox.Visible = false
+            StickerAddStatus.Text = "Enter an image ID and save locally."
+            StickerAddStatus.TextColor3 = Color3.fromRGB(160, 160, 175)
+        end
+    end)
 end)
 
-CustomStickerInput.FocusLost:Connect(function(enterPressed)
-    if enterPressed and CustomStickerDialog.Visible then
-        CustomStickerSave:Activate()
+StickerAddInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed and StickerAddBox.Visible then
+        StickerAddSave:Activate()
     end
 end)
 
