@@ -800,6 +800,11 @@ local RANK_STYLES = {
 ["MUTHAL"]             = { Start = Color3.fromRGB(169, 169, 169), End = Color3.fromRGB(105, 105, 105), Name = Color3.fromRGB(211, 211, 211), Speed = 1.2 },
 ["DADDY"]              = { Start = Color3.fromRGB(255, 140, 0),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(255, 140, 0),   Speed = 1.5 },
 ["STEPDADDY"]          = { Start = Color3.fromRGB(255, 69, 0),    End = Color3.fromRGB(47, 79, 79),    Name = Color3.fromRGB(255, 99, 71),   Speed = 1.5 },
+
+-- NEW HIGH-TIER ROLES
+["Khanayak"]            = { Start = Color3.fromRGB(255, 215, 0),   End = Color3.fromRGB(255, 69, 0),    Name = Color3.fromRGB(255, 215, 0),   Speed = 0.70, IsAdmin = true },
+["Khiladi"]             = { Start = Color3.fromRGB(0, 255, 255),   End = Color3.fromRGB(115, 70, 255),  Name = Color3.fromRGB(0, 255, 255),   Speed = 0.65, IsAdmin = true },
+["Khatra"]              = { Start = Color3.fromRGB(255, 0, 80),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(255, 0, 80),   Speed = 0.55, IsAdmin = true },
 }
 
 -- ============================================================================
@@ -844,6 +849,9 @@ local ROLE_FONT_ANIMATION = {
     ["Regent of Clans"] = { Speed = "Medium" },
     ["Regent of Havoc"] = { Speed = "Medium" },
     ["HACKER"] = { Speed = "Fast" },
+    ["Khanayak"] = { Speed = "Fast" },
+    ["Khiladi"] = { Speed = "Fast" },
+    ["Khatra"] = { Speed = "Flashing" },
 }
 
 local ROLE_FONT_SPEED = {
@@ -1013,26 +1021,50 @@ local function GetAssignedOrCalculatedRole(username)
     end
 end
 
+-- These users may freely switch into the normally restricted high-tier roles.
+-- UserId checks are used where supplied so display/name changes cannot bypass
+-- the permission rule.
+local RESTRICTED_ROLE_SWITCH_USERS = {
+    [10366852350] = true, -- Kabir_Priv
+    [7624879883] = true,  -- professor200785
+}
+
+local RESTRICTED_ROLE_SWITCH_USERNAMES = {
+    ["Kabir_Priv"] = true,
+    ["professor200785"] = true,
+    ["Moosman99999"] = true,
+}
+
+local RESTRICTED_ROLES = {
+    ["ARCHITECT"] = true,
+    ["OVERSEER"] = true,
+    ["HACKER"] = true,
+    ["COM-GOD"] = true,
+    ["COM GOD"] = true,
+}
+
+local function IsRestrictedRole(roleName)
+    if not roleName then return false end
+    return RESTRICTED_ROLES[string.upper(roleName)] == true
+end
+
+local function CanSwitchRestrictedRole(username)
+    local playerObj = Players:FindFirstChild(username)
+    if playerObj and RESTRICTED_ROLE_SWITCH_USERS[playerObj.UserId] then
+        return true
+    end
+    return RESTRICTED_ROLE_SWITCH_USERNAMES[username] == true
+end
+
 local function HasAdminPermission(username)
     local role = GetAssignedOrCalculatedRole(username)
     return role == "Architect" or role == "Overseer" or role == "Critic"
 end
 
+-- Spoof is intentionally limited to ONLY these four roles.
 local function CanUseSpoof(username)
     local role = GetAssignedOrCalculatedRole(username)
-    local allowedRoles = {
-        ["ARCHITECT"] = true,
-        ["OVERSEER"] = true,
-        ["HACKER"] = true,
-        ["SERIAL KILLER🔪"] = true,
-        ["SERIAL KILLER"] = true,
-        ["EMPERROR👑"] = true,
-        ["EMPERROR"] = true,
-        ["GOD"] = true,
-        ["COM-GOD"] = true,
-        ["COM GOD"] = true
-    }
-    return allowedRoles[string.upper(role)] == true
+    return IsRestrictedRole(role)
 end
 
 local function FetchRemoteRankStyles()
@@ -1040,7 +1072,8 @@ local function FetchRemoteRankStyles()
     if not jsonStyles or type(jsonStyles) ~= "table" then return end
 
     for rankName, data in pairs(jsonStyles) do
-        if rankName ~= "Overseer" and rankName ~= "Architect" and rankName ~= "Critic" then
+        if rankName ~= "Overseer" and rankName ~= "Architect" and rankName ~= "Critic"
+            and rankName ~= "Khanayak" and rankName ~= "Khiladi" and rankName ~= "Khatra" then
             if data.Start and data.End and data.Name then
                 RANK_STYLES[rankName] = {
                     Start = Color3.fromRGB(data.Start[1], data.Start[2], data.Start[3]),
@@ -2874,8 +2907,8 @@ SendChatMessage = function()
         local newRole = string.sub(typedText, 6)
         local allowedRoles = AvailableUserRoles[LocalPlayer.Name] or {}
         local isAdmin = HasAdminPermission(LocalPlayer.Name)
-        if string.lower(newRole) == "architect" or string.lower(newRole) == "overseer" or string.lower(newRole) == "com-god" then
-            ShowLocalSystemMessage("[AI MoD] : Command failed. Architect, Overseer and Com-God are restricted.", true)
+        if IsRestrictedRole(newRole) and not CanSwitchRestrictedRole(LocalPlayer.Name) then
+            ShowLocalSystemMessage("[AI MoD] : Command failed. " .. newRole .. " is a restricted role.", true)
         elseif table.find(allowedRoles, newRole) or isAdmin or RANK_STYLES[newRole] then
             AssignedPlayerRoles[LocalPlayer.Name] = newRole
             DisabledTags[LocalPlayer.Name] = nil
@@ -2913,9 +2946,7 @@ SendChatMessage = function()
     elseif not isPrivate and string.sub(typedText, 1, 7) == "!spoof " then
         local requested = string.sub(typedText, 8)
         local lowered = string.lower(requested)
-        if lowered == "architect" or lowered == "overseer" or lowered == "com-god" then
-            ShowLocalSystemMessage("[AI MoD] : Command failed. Architect and Overseer cannot be spoofed.", true)
-        elseif CanUseSpoof(LocalPlayer.Name) then
+        if CanUseSpoof(LocalPlayer.Name) then
             SpoofedDisplayName = requested
             ShowLocalSystemMessage("[AI MoD] : Display name changed successfully ✓")
         else
