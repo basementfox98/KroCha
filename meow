@@ -474,29 +474,33 @@ local ActiveTab = "GLOBAL"
 -- STICKER REGISTRY
 -- ============================================================================
 -- ============================================================================
--- PERSISTENT LOCAL STICKER STORAGE
+-- PERSISTENT LOCAL STICKERS
 -- ============================================================================
 local CUSTOM_STICKERS_SAVE_KEY = "Kronos_CustomStickers"
 
 local function LoadPersistentCustomStickers()
     local saved = {}
+
     if readfile and isfile and isfile(CUSTOM_STICKERS_SAVE_KEY .. ".txt") then
         local ok, raw = pcall(function()
             return readfile(CUSTOM_STICKERS_SAVE_KEY .. ".txt")
         end)
+
         if ok and raw and raw ~= "" then
-            local decodedOk, decoded = pcall(function()
+            local decodeOk, decoded = pcall(function()
                 return HttpService:JSONDecode(raw)
             end)
-            if decodedOk and type(decoded) == "table" then
-                for _, value in ipairs(decoded) do
-                    if type(value) == "string" and value ~= "" and not table.find(saved, value) then
-                        table.insert(saved, value)
+
+            if decodeOk and type(decoded) == "table" then
+                for _, stickerId in ipairs(decoded) do
+                    if type(stickerId) == "string" and stickerId ~= "" and not table.find(saved, stickerId) then
+                        table.insert(saved, stickerId)
                     end
                 end
             end
         end
     end
+
     return saved
 end
 
@@ -513,17 +517,11 @@ end
 local function NormalizeStickerId(value)
     value = tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if value == "" then return nil end
-    if value:match("^%d+$") then
-        return "rbxthumb://type=Asset&id=" .. value .. "&w=420&h=420"
-    end
-    if value:sub(1, 11) == "rbxthumb://" or value:sub(1, 13) == "rbxassetid://" then
-        return value
-    end
-    local numericId = value:match("(%d+)")
-    if numericId then
-        return "rbxthumb://type=Asset&id=" .. numericId .. "&w=420&h=420"
-    end
-    return nil
+
+    local numericId = value:match("^%d+$") or value:match("(%d+)")
+    if not numericId then return nil end
+
+    return "rbxthumb://type=Asset&id=" .. numericId .. "&w=420&h=420"
 end
 
 local baseStickers = {
@@ -800,7 +798,6 @@ for _, savedSticker in ipairs(PersistentCustomStickers) do
         hash[savedSticker] = true
     end
 end
-
 
 -- ============================================================================
 -- HARDCODED RANKS & DEFAULT STYLES
@@ -1718,18 +1715,59 @@ StickerPanelStroke.Color = Color3.fromRGB(220, 30, 30)
 StickerPanelStroke.Transparency = 0.4
 StickerPanelStroke.Parent = StickerPanel
 
-local StickerPanelTitle = Instance.new("TextLabel")
-StickerPanelTitle.Size = UDim2.new(1, -48, 0, 26)
-StickerPanelTitle.Position = UDim2.new(0, 8, 0, 4)
-StickerPanelTitle.BackgroundTransparency = 1
-StickerPanelTitle.Font = Enum.Font.GothamBold
-StickerPanelTitle.Text = "STICKERS"
-StickerPanelTitle.TextColor3 = Color3.fromRGB(235, 235, 240)
-StickerPanelTitle.TextSize = 10
-StickerPanelTitle.TextXAlignment = Enum.TextXAlignment.Left
-StickerPanelTitle.ZIndex = 27
-StickerPanelTitle.Parent = StickerPanel
+local StickerScroller = Instance.new("ScrollingFrame")
+StickerScroller.Name = "StickerScroller"
+StickerScroller.Size = UDim2.new(1, -12, 1, -12)
+StickerScroller.Position = UDim2.new(0, 6, 0, 6)
+StickerScroller.BackgroundTransparency = 1
+StickerScroller.BorderSizePixel = 0
+StickerScroller.ScrollBarThickness = 4
+StickerScroller.ScrollBarImageColor3 = Color3.fromRGB(220, 30, 30)
+StickerScroller.ZIndex = 26
+StickerScroller.Parent = StickerPanel
 
+local StickerGrid = Instance.new("UIGridLayout")
+StickerGrid.CellSize = UDim2.new(0, 70, 0, 70)
+StickerGrid.CellPadding = UDim2.new(0, 6, 0, 6)
+StickerGrid.SortOrder = Enum.SortOrder.LayoutOrder
+StickerGrid.Parent = StickerScroller
+
+StickerGrid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    StickerScroller.CanvasSize = UDim2.new(0, 0, 0, StickerGrid.AbsoluteContentSize.Y + 12)
+end)
+
+for _, stickerUrl in ipairs(baseStickers) do
+    local stickerCard = Instance.new("ImageButton")
+    stickerCard.Name = "StickerCard"
+    stickerCard.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
+    stickerCard.BackgroundTransparency = 0.3
+    stickerCard.Image = stickerUrl
+    stickerCard.ScaleType = Enum.ScaleType.Fit
+    stickerCard.ZIndex = 27
+    stickerCard.Parent = StickerScroller
+
+    local cardCorner = Instance.new("UICorner")
+    cardCorner.CornerRadius = UDim.new(0, 8)
+    cardCorner.Parent = stickerCard
+
+    local cardStroke = Instance.new("UIStroke")
+    cardStroke.Thickness = 1
+    cardStroke.Color = Color3.fromRGB(255, 255, 255)
+    cardStroke.Transparency = 0.8
+    cardStroke.Parent = stickerCard
+
+    stickerCard.MouseButton1Click:Connect(function()
+        StickerPanel.Visible = false
+        if MessageInput then
+            MessageInput.Text = stickerUrl
+            if SendChatMessage then SendChatMessage() end
+        end
+    end)
+end
+
+-- ============================================================================
+-- LOCAL STICKER ADD BUTTON
+-- ============================================================================
 local AddStickerButton = Instance.new("TextButton")
 AddStickerButton.Name = "AddStickerButton"
 AddStickerButton.Size = UDim2.new(0, 30, 0, 26)
@@ -1748,27 +1786,6 @@ AddStickerButton.Parent = StickerPanel
 local AddStickerCorner = Instance.new("UICorner")
 AddStickerCorner.CornerRadius = UDim.new(0, 8)
 AddStickerCorner.Parent = AddStickerButton
-
-local StickerScroller = Instance.new("ScrollingFrame")
-StickerScroller.Name = "StickerScroller"
-StickerScroller.Size = UDim2.new(1, -12, 1, -38)
-StickerScroller.Position = UDim2.new(0, 6, 0, 34)
-StickerScroller.BackgroundTransparency = 1
-StickerScroller.BorderSizePixel = 0
-StickerScroller.ScrollBarThickness = 4
-StickerScroller.ScrollBarImageColor3 = Color3.fromRGB(220, 30, 30)
-StickerScroller.ZIndex = 26
-StickerScroller.Parent = StickerPanel
-
-local StickerGrid = Instance.new("UIGridLayout")
-StickerGrid.CellSize = UDim2.new(0, 70, 0, 70)
-StickerGrid.CellPadding = UDim2.new(0, 6, 0, 6)
-StickerGrid.SortOrder = Enum.SortOrder.LayoutOrder
-StickerGrid.Parent = StickerScroller
-
-StickerGrid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    StickerScroller.CanvasSize = UDim2.new(0, 0, 0, StickerGrid.AbsoluteContentSize.Y + 12)
-end)
 
 local CustomStickerDialog = Instance.new("Frame")
 CustomStickerDialog.Name = "CustomStickerDialog"
@@ -1802,28 +1819,15 @@ CustomStickerTitle.TextXAlignment = Enum.TextXAlignment.Left
 CustomStickerTitle.ZIndex = 81
 CustomStickerTitle.Parent = CustomStickerDialog
 
-local CustomStickerHint = Instance.new("TextLabel")
-CustomStickerHint.Size = UDim2.new(1, -20, 0, 20)
-CustomStickerHint.Position = UDim2.new(0, 10, 0, 34)
-CustomStickerHint.BackgroundTransparency = 1
-CustomStickerHint.Font = Enum.Font.Gotham
-CustomStickerHint.Text = "Enter a Roblox image / asset ID"
-CustomStickerHint.TextColor3 = Color3.fromRGB(160, 160, 175)
-CustomStickerHint.TextSize = 10
-CustomStickerHint.TextXAlignment = Enum.TextXAlignment.Left
-CustomStickerHint.ZIndex = 81
-CustomStickerHint.Parent = CustomStickerDialog
-
 local CustomStickerInput = Instance.new("TextBox")
-CustomStickerInput.Name = "CustomStickerInput"
 CustomStickerInput.Size = UDim2.new(1, -20, 0, 30)
-CustomStickerInput.Position = UDim2.new(0, 10, 0, 58)
+CustomStickerInput.Position = UDim2.new(0, 10, 0, 48)
 CustomStickerInput.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 CustomStickerInput.BackgroundTransparency = 0.1
 CustomStickerInput.BorderSizePixel = 0
 CustomStickerInput.ClearTextOnFocus = false
 CustomStickerInput.Font = Enum.Font.Gotham
-CustomStickerInput.PlaceholderText = "e.g. 1234567890"
+CustomStickerInput.PlaceholderText = "Enter Roblox image ID..."
 CustomStickerInput.PlaceholderColor3 = Color3.fromRGB(110, 110, 125)
 CustomStickerInput.Text = ""
 CustomStickerInput.TextColor3 = Color3.fromRGB(240, 240, 245)
@@ -1867,46 +1871,9 @@ local CustomStickerSaveCorner = Instance.new("UICorner")
 CustomStickerSaveCorner.CornerRadius = UDim.new(0, 7)
 CustomStickerSaveCorner.Parent = CustomStickerSave
 
-local function AddStickerCard(stickerUrl)
-    local stickerCard = Instance.new("ImageButton")
-    stickerCard.Name = "StickerCard"
-    stickerCard.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
-    stickerCard.BackgroundTransparency = 0.3
-    stickerCard.Image = stickerUrl
-    stickerCard.ScaleType = Enum.ScaleType.Fit
-    stickerCard.ZIndex = 27
-    stickerCard.Parent = StickerScroller
-
-    local cardCorner = Instance.new("UICorner")
-    cardCorner.CornerRadius = UDim.new(0, 8)
-    cardCorner.Parent = stickerCard
-
-    local cardStroke = Instance.new("UIStroke")
-    cardStroke.Thickness = 1
-    cardStroke.Color = Color3.fromRGB(255, 255, 255)
-    cardStroke.Transparency = 0.8
-    cardStroke.Parent = stickerCard
-
-    stickerCard.MouseButton1Click:Connect(function()
-        StickerPanel.Visible = false
-        if MessageInput then
-            MessageInput.Text = stickerUrl
-            if SendChatMessage then SendChatMessage() end
-        end
-    end)
-
-    return stickerCard
-end
-
-for _, stickerUrl in ipairs(baseStickers) do
-    AddStickerCard(stickerUrl)
-end
-
 local function CloseCustomStickerDialog()
     CustomStickerDialog.Visible = false
     CustomStickerInput.Text = ""
-    CustomStickerHint.Text = "Enter a Roblox image / asset ID"
-    CustomStickerHint.TextColor3 = Color3.fromRGB(160, 160, 175)
 end
 
 AddStickerButton.MouseButton1Click:Connect(function()
@@ -1920,25 +1887,46 @@ end)
 
 CustomStickerSave.MouseButton1Click:Connect(function()
     local stickerUrl = NormalizeStickerId(CustomStickerInput.Text)
+
     if not stickerUrl then
-        CustomStickerHint.Text = "Invalid ID. Enter a numeric Roblox asset ID."
-        CustomStickerHint.TextColor3 = Color3.fromRGB(255, 90, 90)
+        CustomStickerInput.Text = ""
         return
     end
 
     if not table.find(PersistentCustomStickers, stickerUrl) then
         table.insert(PersistentCustomStickers, stickerUrl)
         SavePersistentCustomStickers()
-        AddStickerCard(stickerUrl)
+
+        local stickerCard = Instance.new("ImageButton")
+        stickerCard.Name = "StickerCard"
+        stickerCard.Size = UDim2.new(0, 70, 0, 70)
+        stickerCard.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
+        stickerCard.BackgroundTransparency = 0.3
+        stickerCard.Image = stickerUrl
+        stickerCard.ScaleType = Enum.ScaleType.Fit
+        stickerCard.ZIndex = 27
+        stickerCard.Parent = StickerScroller
+
+        local cardCorner = Instance.new("UICorner")
+        cardCorner.CornerRadius = UDim.new(0, 8)
+        cardCorner.Parent = stickerCard
+
+        local cardStroke = Instance.new("UIStroke")
+        cardStroke.Thickness = 1
+        cardStroke.Color = Color3.fromRGB(255, 255, 255)
+        cardStroke.Transparency = 0.8
+        cardStroke.Parent = stickerCard
+
+        stickerCard.MouseButton1Click:Connect(function()
+            StickerPanel.Visible = false
+            if MessageInput then
+                MessageInput.Text = stickerUrl
+                if SendChatMessage then SendChatMessage() end
+            end
+        end)
     end
 
-    CustomStickerHint.Text = "Sticker saved locally."
-    CustomStickerHint.TextColor3 = Color3.fromRGB(0, 255, 150)
-    task.delay(0.6, function()
-        if CustomStickerDialog.Parent then
-            CloseCustomStickerDialog()
-        end
-    end)
+    CloseCustomStickerDialog()
 end)
 
 CustomStickerInput.FocusLost:Connect(function(enterPressed)
@@ -1946,7 +1934,6 @@ CustomStickerInput.FocusLost:Connect(function(enterPressed)
         CustomStickerSave:Activate()
     end
 end)
-
 
 -- ============================================================================
 -- PROFILE TAB IMPLEMENTATION
