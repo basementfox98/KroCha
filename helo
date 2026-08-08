@@ -742,6 +742,68 @@ end
 baseStickers = uniqueStickers
 
 -- ============================================================================
+-- PERSISTENT CUSTOM STICKER SYSTEM
+-- Custom sticker IDs are stored locally through the executor's file APIs so
+-- they remain available after the script is restarted.
+-- ============================================================================
+local CUSTOM_STICKERS_SAVE_KEY = "Kronos_CustomStickers.json"
+local customStickers = {}
+
+local function NormalizeStickerId(rawValue)
+    if rawValue == nil then return nil end
+
+    local raw = tostring(rawValue)
+    raw = raw:gsub("^%s+", ""):gsub("%s+$", "")
+    if raw == "" then return nil end
+
+    -- Accept a plain Roblox asset/image ID.
+    local numericId = raw:match("^%d+$")
+
+    -- Also accept common Roblox image formats if the user pastes one.
+    if not numericId then
+        numericId = raw:match("[?&]id=(%d+)")
+    end
+    if not numericId then
+        numericId = raw:match("^rbxassetid://(%d+)$")
+    end
+    if not numericId then
+        numericId = raw:match("^rbxthumb://type=Asset&id=(%d+)")
+    end
+
+    if not numericId then return nil end
+    return "rbxthumb://type=Asset&id=" .. numericId .. "&w=420&h=420"
+end
+
+local function LoadCustomStickers()
+    if not (readfile and isfile) then return end
+    if not isfile(CUSTOM_STICKERS_SAVE_KEY) then return end
+
+    local success, decoded = pcall(function()
+        return HttpService:JSONDecode(readfile(CUSTOM_STICKERS_SAVE_KEY))
+    end)
+
+    if not success or type(decoded) ~= "table" then return end
+
+    local seen = {}
+    for _, savedSticker in ipairs(decoded) do
+        local normalized = NormalizeStickerId(savedSticker)
+        if normalized and not seen[normalized] then
+            table.insert(customStickers, normalized)
+            seen[normalized] = true
+        end
+    end
+end
+
+local function SaveCustomStickers()
+    if not writefile then return end
+    pcall(function()
+        writefile(CUSTOM_STICKERS_SAVE_KEY, HttpService:JSONEncode(customStickers))
+    end)
+end
+
+LoadCustomStickers()
+
+-- ============================================================================
 -- HARDCODED RANKS & DEFAULT STYLES
 -- ============================================================================
 local RANK_STYLES = {
@@ -1625,13 +1687,120 @@ StickerGrid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     StickerScroller.CanvasSize = UDim2.new(0, 0, 0, StickerGrid.AbsoluteContentSize.Y + 12)
 end)
 
-for _, stickerUrl in ipairs(baseStickers) do
+-- Custom sticker entry prompt. It lives inside the existing sticker panel so
+-- the rest of the interface remains untouched.
+local CustomStickerPrompt = Instance.new("Frame")
+CustomStickerPrompt.Name = "CustomStickerPrompt"
+CustomStickerPrompt.Size = UDim2.new(1, -16, 0, 104)
+CustomStickerPrompt.Position = UDim2.new(0, 8, 0, 8)
+CustomStickerPrompt.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
+CustomStickerPrompt.BackgroundTransparency = 0.05
+CustomStickerPrompt.BorderSizePixel = 0
+CustomStickerPrompt.Visible = false
+CustomStickerPrompt.ZIndex = 40
+CustomStickerPrompt.Parent = StickerPanel
+
+local CustomStickerPromptCorner = Instance.new("UICorner")
+CustomStickerPromptCorner.CornerRadius = UDim.new(0, 8)
+CustomStickerPromptCorner.Parent = CustomStickerPrompt
+
+local CustomStickerPromptStroke = Instance.new("UIStroke")
+CustomStickerPromptStroke.Thickness = 1
+CustomStickerPromptStroke.Color = Color3.fromRGB(220, 30, 30)
+CustomStickerPromptStroke.Transparency = 0.35
+CustomStickerPromptStroke.Parent = CustomStickerPrompt
+
+local CustomStickerPromptTitle = Instance.new("TextLabel")
+CustomStickerPromptTitle.Size = UDim2.new(1, -16, 0, 20)
+CustomStickerPromptTitle.Position = UDim2.new(0, 8, 0, 5)
+CustomStickerPromptTitle.BackgroundTransparency = 1
+CustomStickerPromptTitle.Font = Enum.Font.GothamBold
+CustomStickerPromptTitle.Text = "ADD CUSTOM STICKER"
+CustomStickerPromptTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+CustomStickerPromptTitle.TextSize = 10
+CustomStickerPromptTitle.TextXAlignment = Enum.TextXAlignment.Left
+CustomStickerPromptTitle.ZIndex = 41
+CustomStickerPromptTitle.Parent = CustomStickerPrompt
+
+local CustomStickerInput = Instance.new("TextBox")
+CustomStickerInput.Name = "CustomStickerInput"
+CustomStickerInput.Size = UDim2.new(1, -16, 0, 28)
+CustomStickerInput.Position = UDim2.new(0, 8, 0, 28)
+CustomStickerInput.BackgroundColor3 = Color3.fromRGB(10, 10, 18)
+CustomStickerInput.BackgroundTransparency = 0.2
+CustomStickerInput.BorderSizePixel = 0
+CustomStickerInput.ClearTextOnFocus = false
+CustomStickerInput.Font = Enum.Font.Gotham
+CustomStickerInput.PlaceholderText = "Paste Roblox image / asset ID..."
+CustomStickerInput.PlaceholderColor3 = Color3.fromRGB(130, 130, 140)
+CustomStickerInput.Text = ""
+CustomStickerInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+CustomStickerInput.TextSize = 10
+CustomStickerInput.TextXAlignment = Enum.TextXAlignment.Left
+CustomStickerInput.ZIndex = 41
+CustomStickerInput.Parent = CustomStickerPrompt
+
+local CustomStickerInputCorner = Instance.new("UICorner")
+CustomStickerInputCorner.CornerRadius = UDim.new(0, 6)
+CustomStickerInputCorner.Parent = CustomStickerInput
+
+local CustomStickerStatus = Instance.new("TextLabel")
+CustomStickerStatus.Size = UDim2.new(1, -16, 0, 14)
+CustomStickerStatus.Position = UDim2.new(0, 8, 0, 58)
+CustomStickerStatus.BackgroundTransparency = 1
+CustomStickerStatus.Font = Enum.Font.Gotham
+CustomStickerStatus.Text = ""
+CustomStickerStatus.TextColor3 = Color3.fromRGB(255, 100, 100)
+CustomStickerStatus.TextSize = 8
+CustomStickerStatus.TextXAlignment = Enum.TextXAlignment.Left
+CustomStickerStatus.ZIndex = 41
+CustomStickerStatus.Parent = CustomStickerPrompt
+
+local CustomStickerAddBtn = Instance.new("TextButton")
+CustomStickerAddBtn.Name = "CustomStickerAddBtn"
+CustomStickerAddBtn.Size = UDim2.new(0, 58, 0, 22)
+CustomStickerAddBtn.Position = UDim2.new(1, -116, 1, -28)
+CustomStickerAddBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+CustomStickerAddBtn.BackgroundTransparency = 0.15
+CustomStickerAddBtn.BorderSizePixel = 0
+CustomStickerAddBtn.Font = Enum.Font.GothamBold
+CustomStickerAddBtn.Text = "SAVE"
+CustomStickerAddBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CustomStickerAddBtn.TextSize = 9
+CustomStickerAddBtn.ZIndex = 41
+CustomStickerAddBtn.Parent = CustomStickerPrompt
+
+local CustomStickerAddCorner = Instance.new("UICorner")
+CustomStickerAddCorner.CornerRadius = UDim.new(0, 6)
+CustomStickerAddCorner.Parent = CustomStickerAddBtn
+
+local CustomStickerCancelBtn = Instance.new("TextButton")
+CustomStickerCancelBtn.Name = "CustomStickerCancelBtn"
+CustomStickerCancelBtn.Size = UDim2.new(0, 58, 0, 22)
+CustomStickerCancelBtn.Position = UDim2.new(1, -54, 1, -28)
+CustomStickerCancelBtn.AnchorPoint = Vector2.new(1, 0)
+CustomStickerCancelBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+CustomStickerCancelBtn.BackgroundTransparency = 0.15
+CustomStickerCancelBtn.BorderSizePixel = 0
+CustomStickerCancelBtn.Font = Enum.Font.GothamBold
+CustomStickerCancelBtn.Text = "CANCEL"
+CustomStickerCancelBtn.TextColor3 = Color3.fromRGB(220, 220, 230)
+CustomStickerCancelBtn.TextSize = 8
+CustomStickerCancelBtn.ZIndex = 41
+CustomStickerCancelBtn.Parent = CustomStickerPrompt
+
+local CustomStickerCancelCorner = Instance.new("UICorner")
+CustomStickerCancelCorner.CornerRadius = UDim.new(0, 6)
+CustomStickerCancelCorner.Parent = CustomStickerCancelBtn
+
+local function CreateStickerCard(stickerUrl, layoutOrder)
     local stickerCard = Instance.new("ImageButton")
     stickerCard.Name = "StickerCard"
     stickerCard.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
     stickerCard.BackgroundTransparency = 0.3
     stickerCard.Image = stickerUrl
     stickerCard.ScaleType = Enum.ScaleType.Fit
+    stickerCard.LayoutOrder = layoutOrder or 0
     stickerCard.ZIndex = 27
     stickerCard.Parent = StickerScroller
 
@@ -1652,6 +1821,111 @@ for _, stickerUrl in ipairs(baseStickers) do
             if SendChatMessage then SendChatMessage() end
         end
     end)
+
+    return stickerCard
+end
+
+-- The first card is a + button used to add a custom Roblox image ID.
+local AddStickerCard = Instance.new("TextButton")
+AddStickerCard.Name = "AddStickerCard"
+AddStickerCard.Size = UDim2.new(0, 70, 0, 70)
+AddStickerCard.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
+AddStickerCard.BackgroundTransparency = 0.3
+AddStickerCard.BorderSizePixel = 0
+AddStickerCard.LayoutOrder = -1
+AddStickerCard.Text = "+"
+AddStickerCard.TextColor3 = Color3.fromRGB(255, 255, 255)
+AddStickerCard.Font = Enum.Font.GothamBold
+AddStickerCard.TextSize = 30
+AddStickerCard.AutoButtonColor = true
+AddStickerCard.ZIndex = 27
+AddStickerCard.Parent = StickerScroller
+
+local AddStickerCardCorner = Instance.new("UICorner")
+AddStickerCardCorner.CornerRadius = UDim.new(0, 8)
+AddStickerCardCorner.Parent = AddStickerCard
+
+local AddStickerCardStroke = Instance.new("UIStroke")
+AddStickerCardStroke.Thickness = 1
+AddStickerCardStroke.Color = Color3.fromRGB(255, 255, 255)
+AddStickerCardStroke.Transparency = 0.7
+AddStickerCardStroke.Parent = AddStickerCard
+
+local function CloseCustomStickerPrompt()
+    CustomStickerPrompt.Visible = false
+    CustomStickerInput.Text = ""
+    CustomStickerStatus.Text = ""
+end
+
+local function OpenCustomStickerPrompt()
+    CustomStickerPrompt.Visible = true
+    CustomStickerInput.Text = ""
+    CustomStickerStatus.Text = ""
+    task.defer(function()
+        pcall(function()
+            CustomStickerInput:CaptureFocus()
+        end)
+    end)
+end
+
+local function AddCustomSticker(rawId)
+    local stickerUrl = NormalizeStickerId(rawId)
+    if not stickerUrl then
+        CustomStickerStatus.Text = "Invalid Roblox image / asset ID."
+        return false
+    end
+
+    for _, existingSticker in ipairs(baseStickers) do
+        if existingSticker == stickerUrl then
+            CustomStickerStatus.Text = "That sticker is already in the list."
+            return false
+        end
+    end
+
+    for _, existingSticker in ipairs(customStickers) do
+        if existingSticker == stickerUrl then
+            CustomStickerStatus.Text = "That custom sticker is already saved."
+            return false
+        end
+    end
+
+    table.insert(customStickers, stickerUrl)
+    SaveCustomStickers()
+
+    local nextOrder = #baseStickers + #customStickers + 1
+    CreateStickerCard(stickerUrl, nextOrder)
+
+    CloseCustomStickerPrompt()
+    return true
+end
+
+AddStickerCard.MouseButton1Click:Connect(function()
+    OpenCustomStickerPrompt()
+end)
+
+CustomStickerCancelBtn.MouseButton1Click:Connect(function()
+    CloseCustomStickerPrompt()
+end)
+
+CustomStickerAddBtn.MouseButton1Click:Connect(function()
+    AddCustomSticker(CustomStickerInput.Text)
+end)
+
+CustomStickerInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        AddCustomSticker(CustomStickerInput.Text)
+    end
+end)
+
+local stickerLayoutOrder = 0
+for _, stickerUrl in ipairs(baseStickers) do
+    stickerLayoutOrder = stickerLayoutOrder + 1
+    CreateStickerCard(stickerUrl, stickerLayoutOrder)
+end
+
+for _, stickerUrl in ipairs(customStickers) do
+    stickerLayoutOrder = stickerLayoutOrder + 1
+    CreateStickerCard(stickerUrl, stickerLayoutOrder)
 end
 
 -- ============================================================================
