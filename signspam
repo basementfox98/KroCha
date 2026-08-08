@@ -920,6 +920,7 @@ local PrivateModeTargetUsername = nil
 local PrivateModeTargetDisplayName = nil
 local PrivateModePill = nil
 local RefreshReplyUI = function() end
+local ClearPersistentPrivatePrefix = function() end
 
 local AssignedPlayerRoles = {}
 local AvailableUserRoles = {}
@@ -2011,7 +2012,7 @@ local privatePillCorner = Instance.new("UICorner")
 privatePillCorner.CornerRadius = UDim.new(0, 8)
 privatePillCorner.Parent = PrivateModePill
 local function DisablePrivateModeFromPill()
-    -- Explicit PVT OFF control. No textbox parsing is involved.
+    -- Same explicit cancel model as ReplyStatusLabel.
     ClearPersistentPrivatePrefix()
     if MessageInput then
         MessageInput:CaptureFocus()
@@ -2020,7 +2021,12 @@ end
 
 PrivateModePill.Active = true
 PrivateModePill.Selectable = false
-PrivateModePill.MouseButton1Click:Connect(DisablePrivateModeFromPill)
+PrivateModePill.AutoButtonColor = false
+
+-- Primary activation, matching the Reply control.
+PrivateModePill.Activated:Connect(DisablePrivateModeFromPill)
+
+-- Input fallback for mouse/touch clients.
 PrivateModePill.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
@@ -2185,7 +2191,8 @@ local function SetPersistentPrivatePrefix(displayName, username)
     RefreshPrivateModeUI()
 end
 
-local function ClearPersistentPrivatePrefix()
+ClearPersistentPrivatePrefix = function()
+    -- Explicit PVT cancel, independent of textbox focus/content.
     PersistentPvtPrefix = ""
     PrivateModeTargetUsername = nil
     PrivateModeTargetDisplayName = nil
