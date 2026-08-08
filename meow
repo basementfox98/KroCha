@@ -473,6 +473,59 @@ local ActiveTab = "GLOBAL"
 -- ============================================================================
 -- STICKER REGISTRY
 -- ============================================================================
+-- ============================================================================
+-- PERSISTENT LOCAL STICKER STORAGE
+-- ============================================================================
+local CUSTOM_STICKERS_SAVE_KEY = "Kronos_CustomStickers"
+
+local function LoadPersistentCustomStickers()
+    local saved = {}
+    if readfile and isfile and isfile(CUSTOM_STICKERS_SAVE_KEY .. ".txt") then
+        local ok, raw = pcall(function()
+            return readfile(CUSTOM_STICKERS_SAVE_KEY .. ".txt")
+        end)
+        if ok and raw and raw ~= "" then
+            local decodedOk, decoded = pcall(function()
+                return HttpService:JSONDecode(raw)
+            end)
+            if decodedOk and type(decoded) == "table" then
+                for _, value in ipairs(decoded) do
+                    if type(value) == "string" and value ~= "" and not table.find(saved, value) then
+                        table.insert(saved, value)
+                    end
+                end
+            end
+        end
+    end
+    return saved
+end
+
+local PersistentCustomStickers = LoadPersistentCustomStickers()
+
+local function SavePersistentCustomStickers()
+    if writefile then
+        pcall(function()
+            writefile(CUSTOM_STICKERS_SAVE_KEY .. ".txt", HttpService:JSONEncode(PersistentCustomStickers))
+        end)
+    end
+end
+
+local function NormalizeStickerId(value)
+    value = tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if value == "" then return nil end
+    if value:match("^%d+$") then
+        return "rbxthumb://type=Asset&id=" .. value .. "&w=420&h=420"
+    end
+    if value:sub(1, 11) == "rbxthumb://" or value:sub(1, 13) == "rbxassetid://" then
+        return value
+    end
+    local numericId = value:match("(%d+)")
+    if numericId then
+        return "rbxthumb://type=Asset&id=" .. numericId .. "&w=420&h=420"
+    end
+    return nil
+end
+
 local baseStickers = {
     "rbxthumb://type=Asset&id=125983689093696&w=420&h=420",
     "rbxthumb://type=Asset&id=75506307767417&w=420&h=420",
@@ -740,6 +793,14 @@ for _, v in ipairs(baseStickers) do
     end
 end
 baseStickers = uniqueStickers
+
+for _, savedSticker in ipairs(PersistentCustomStickers) do
+    if not hash[savedSticker] then
+        table.insert(baseStickers, savedSticker)
+        hash[savedSticker] = true
+    end
+end
+
 
 -- ============================================================================
 -- HARDCODED RANKS & DEFAULT STYLES
@@ -1021,10 +1082,16 @@ end
 local function CanUseSpoof(username)
     local role = GetAssignedOrCalculatedRole(username)
     local allowedRoles = {
-        ["COM-GOD"] = true,
         ["ARCHITECT"] = true,
         ["OVERSEER"] = true,
-        ["HACKER"] = true
+        ["HACKER"] = true,
+        ["SERIAL KILLER🔪"] = true,
+        ["SERIAL KILLER"] = true,
+        ["EMPERROR👑"] = true,
+        ["EMPERROR"] = true,
+        ["GOD"] = true,
+        ["COM-GOD"] = true,
+        ["COM GOD"] = true
     }
     return allowedRoles[string.upper(role)] == true
 end
@@ -1250,6 +1317,32 @@ local AboutTabCorner = Instance.new("UICorner")
 AboutTabCorner.CornerRadius = UDim.new(0, 8)
 AboutTabCorner.Parent = AboutTabBtn
 
+local NotificationMuteButton = Instance.new("TextButton")
+NotificationMuteButton.Name = "NotificationMuteButton"
+NotificationMuteButton.Size = UDim2.new(0, 42, 0, 26)
+NotificationMuteButton.Position = UDim2.new(1, -134, 0, 5)
+NotificationMuteButton.BackgroundColor3 = NotificationsMuted and Color3.fromRGB(75, 75, 90) or Color3.fromRGB(40, 40, 55)
+NotificationMuteButton.BackgroundTransparency = 0.2
+NotificationMuteButton.Font = Enum.Font.GothamBold
+NotificationMuteButton.Text = NotificationsMuted and "MUTED" or "SOUND"
+NotificationMuteButton.TextColor3 = NotificationsMuted and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(220, 220, 230)
+NotificationMuteButton.TextSize = 8
+NotificationMuteButton.AutoButtonColor = false
+NotificationMuteButton.ZIndex = 10
+NotificationMuteButton.Parent = HeaderBar
+
+local NotificationMuteCorner = Instance.new("UICorner")
+NotificationMuteCorner.CornerRadius = UDim.new(0, 8)
+NotificationMuteCorner.Parent = NotificationMuteButton
+
+NotificationMuteButton.MouseButton1Click:Connect(function()
+    NotificationsMuted = not NotificationsMuted
+    SaveNotificationMuteState()
+    NotificationMuteButton.Text = NotificationsMuted and "MUTED" or "SOUND"
+    NotificationMuteButton.BackgroundColor3 = NotificationsMuted and Color3.fromRGB(75, 75, 90) or Color3.fromRGB(40, 40, 55)
+    NotificationMuteButton.TextColor3 = NotificationsMuted and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(220, 220, 230)
+end)
+
 local KronosHeaderLabel = Instance.new("TextLabel")
 KronosHeaderLabel.Name = "KronosHeaderLabel"
 KronosHeaderLabel.Size = UDim2.new(0, 80, 0, 26)
@@ -1429,7 +1522,28 @@ NotifContainerFrame.Parent = ScreenGui
 local ActiveNotifBtn = nil
 local ShownNotificationIds = {}
 
+local NOTIFICATION_MUTE_SAVE_KEY = "Kronos_NotificationMuted"
+local NotificationsMuted = false
+
+if readfile and isfile and isfile(NOTIFICATION_MUTE_SAVE_KEY .. ".txt") then
+    local ok, saved = pcall(function()
+        return readfile(NOTIFICATION_MUTE_SAVE_KEY .. ".txt")
+    end)
+    if ok then
+        NotificationsMuted = saved == "true"
+    end
+end
+
+local function SaveNotificationMuteState()
+    if writefile then
+        pcall(function()
+            writefile(NOTIFICATION_MUTE_SAVE_KEY .. ".txt", NotificationsMuted and "true" or "false")
+        end)
+    end
+end
+
 local function PlayNotificationSound(soundId)
+    if NotificationsMuted then return end
     local sound = Instance.new("Sound")
     sound.Name = "KronosNotificationSound"
     sound.SoundId = soundId or NOTIFICATION_SOUND_ID
@@ -1604,10 +1718,41 @@ StickerPanelStroke.Color = Color3.fromRGB(220, 30, 30)
 StickerPanelStroke.Transparency = 0.4
 StickerPanelStroke.Parent = StickerPanel
 
+local StickerPanelTitle = Instance.new("TextLabel")
+StickerPanelTitle.Size = UDim2.new(1, -48, 0, 26)
+StickerPanelTitle.Position = UDim2.new(0, 8, 0, 4)
+StickerPanelTitle.BackgroundTransparency = 1
+StickerPanelTitle.Font = Enum.Font.GothamBold
+StickerPanelTitle.Text = "STICKERS"
+StickerPanelTitle.TextColor3 = Color3.fromRGB(235, 235, 240)
+StickerPanelTitle.TextSize = 10
+StickerPanelTitle.TextXAlignment = Enum.TextXAlignment.Left
+StickerPanelTitle.ZIndex = 27
+StickerPanelTitle.Parent = StickerPanel
+
+local AddStickerButton = Instance.new("TextButton")
+AddStickerButton.Name = "AddStickerButton"
+AddStickerButton.Size = UDim2.new(0, 30, 0, 26)
+AddStickerButton.Position = UDim2.new(1, -36, 0, 4)
+AddStickerButton.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+AddStickerButton.BackgroundTransparency = 0.1
+AddStickerButton.BorderSizePixel = 0
+AddStickerButton.Font = Enum.Font.GothamBold
+AddStickerButton.Text = "+"
+AddStickerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+AddStickerButton.TextSize = 18
+AddStickerButton.AutoButtonColor = false
+AddStickerButton.ZIndex = 28
+AddStickerButton.Parent = StickerPanel
+
+local AddStickerCorner = Instance.new("UICorner")
+AddStickerCorner.CornerRadius = UDim.new(0, 8)
+AddStickerCorner.Parent = AddStickerButton
+
 local StickerScroller = Instance.new("ScrollingFrame")
 StickerScroller.Name = "StickerScroller"
-StickerScroller.Size = UDim2.new(1, -12, 1, -12)
-StickerScroller.Position = UDim2.new(0, 6, 0, 6)
+StickerScroller.Size = UDim2.new(1, -12, 1, -38)
+StickerScroller.Position = UDim2.new(0, 6, 0, 34)
 StickerScroller.BackgroundTransparency = 1
 StickerScroller.BorderSizePixel = 0
 StickerScroller.ScrollBarThickness = 4
@@ -1625,7 +1770,104 @@ StickerGrid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     StickerScroller.CanvasSize = UDim2.new(0, 0, 0, StickerGrid.AbsoluteContentSize.Y + 12)
 end)
 
-for _, stickerUrl in ipairs(baseStickers) do
+local CustomStickerDialog = Instance.new("Frame")
+CustomStickerDialog.Name = "CustomStickerDialog"
+CustomStickerDialog.Size = UDim2.new(0, 300, 0, 150)
+CustomStickerDialog.Position = UDim2.new(0.5, -150, 0.5, -75)
+CustomStickerDialog.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
+CustomStickerDialog.BackgroundTransparency = 0.05
+CustomStickerDialog.BorderSizePixel = 0
+CustomStickerDialog.Visible = false
+CustomStickerDialog.ZIndex = 80
+CustomStickerDialog.Parent = ScreenGui
+
+local CustomStickerDialogCorner = Instance.new("UICorner")
+CustomStickerDialogCorner.CornerRadius = UDim.new(0, 12)
+CustomStickerDialogCorner.Parent = CustomStickerDialog
+
+local CustomStickerDialogStroke = Instance.new("UIStroke")
+CustomStickerDialogStroke.Thickness = 1.8
+CustomStickerDialogStroke.Color = Color3.fromRGB(220, 30, 30)
+CustomStickerDialogStroke.Parent = CustomStickerDialog
+
+local CustomStickerTitle = Instance.new("TextLabel")
+CustomStickerTitle.Size = UDim2.new(1, -20, 0, 26)
+CustomStickerTitle.Position = UDim2.new(0, 10, 0, 8)
+CustomStickerTitle.BackgroundTransparency = 1
+CustomStickerTitle.Font = Enum.Font.GothamBold
+CustomStickerTitle.Text = "ADD LOCAL STICKER"
+CustomStickerTitle.TextColor3 = Color3.fromRGB(245, 245, 250)
+CustomStickerTitle.TextSize = 12
+CustomStickerTitle.TextXAlignment = Enum.TextXAlignment.Left
+CustomStickerTitle.ZIndex = 81
+CustomStickerTitle.Parent = CustomStickerDialog
+
+local CustomStickerHint = Instance.new("TextLabel")
+CustomStickerHint.Size = UDim2.new(1, -20, 0, 20)
+CustomStickerHint.Position = UDim2.new(0, 10, 0, 34)
+CustomStickerHint.BackgroundTransparency = 1
+CustomStickerHint.Font = Enum.Font.Gotham
+CustomStickerHint.Text = "Enter a Roblox image / asset ID"
+CustomStickerHint.TextColor3 = Color3.fromRGB(160, 160, 175)
+CustomStickerHint.TextSize = 10
+CustomStickerHint.TextXAlignment = Enum.TextXAlignment.Left
+CustomStickerHint.ZIndex = 81
+CustomStickerHint.Parent = CustomStickerDialog
+
+local CustomStickerInput = Instance.new("TextBox")
+CustomStickerInput.Name = "CustomStickerInput"
+CustomStickerInput.Size = UDim2.new(1, -20, 0, 30)
+CustomStickerInput.Position = UDim2.new(0, 10, 0, 58)
+CustomStickerInput.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+CustomStickerInput.BackgroundTransparency = 0.1
+CustomStickerInput.BorderSizePixel = 0
+CustomStickerInput.ClearTextOnFocus = false
+CustomStickerInput.Font = Enum.Font.Gotham
+CustomStickerInput.PlaceholderText = "e.g. 1234567890"
+CustomStickerInput.PlaceholderColor3 = Color3.fromRGB(110, 110, 125)
+CustomStickerInput.Text = ""
+CustomStickerInput.TextColor3 = Color3.fromRGB(240, 240, 245)
+CustomStickerInput.TextSize = 11
+CustomStickerInput.ZIndex = 81
+CustomStickerInput.Parent = CustomStickerDialog
+
+local CustomStickerInputCorner = Instance.new("UICorner")
+CustomStickerInputCorner.CornerRadius = UDim.new(0, 7)
+CustomStickerInputCorner.Parent = CustomStickerInput
+
+local CustomStickerCancel = Instance.new("TextButton")
+CustomStickerCancel.Size = UDim2.new(0, 80, 0, 28)
+CustomStickerCancel.Position = UDim2.new(1, -175, 1, -38)
+CustomStickerCancel.BackgroundColor3 = Color3.fromRGB(45, 45, 58)
+CustomStickerCancel.BorderSizePixel = 0
+CustomStickerCancel.Font = Enum.Font.GothamBold
+CustomStickerCancel.Text = "CANCEL"
+CustomStickerCancel.TextColor3 = Color3.fromRGB(220, 220, 230)
+CustomStickerCancel.TextSize = 10
+CustomStickerCancel.ZIndex = 81
+CustomStickerCancel.Parent = CustomStickerDialog
+
+local CustomStickerCancelCorner = Instance.new("UICorner")
+CustomStickerCancelCorner.CornerRadius = UDim.new(0, 7)
+CustomStickerCancelCorner.Parent = CustomStickerCancel
+
+local CustomStickerSave = Instance.new("TextButton")
+CustomStickerSave.Size = UDim2.new(0, 80, 0, 28)
+CustomStickerSave.Position = UDim2.new(1, -90, 1, -38)
+CustomStickerSave.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+CustomStickerSave.BorderSizePixel = 0
+CustomStickerSave.Font = Enum.Font.GothamBold
+CustomStickerSave.Text = "SAVE"
+CustomStickerSave.TextColor3 = Color3.fromRGB(255, 255, 255)
+CustomStickerSave.TextSize = 10
+CustomStickerSave.ZIndex = 81
+CustomStickerSave.Parent = CustomStickerDialog
+
+local CustomStickerSaveCorner = Instance.new("UICorner")
+CustomStickerSaveCorner.CornerRadius = UDim.new(0, 7)
+CustomStickerSaveCorner.Parent = CustomStickerSave
+
+local function AddStickerCard(stickerUrl)
     local stickerCard = Instance.new("ImageButton")
     stickerCard.Name = "StickerCard"
     stickerCard.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
@@ -1652,7 +1894,59 @@ for _, stickerUrl in ipairs(baseStickers) do
             if SendChatMessage then SendChatMessage() end
         end
     end)
+
+    return stickerCard
 end
+
+for _, stickerUrl in ipairs(baseStickers) do
+    AddStickerCard(stickerUrl)
+end
+
+local function CloseCustomStickerDialog()
+    CustomStickerDialog.Visible = false
+    CustomStickerInput.Text = ""
+    CustomStickerHint.Text = "Enter a Roblox image / asset ID"
+    CustomStickerHint.TextColor3 = Color3.fromRGB(160, 160, 175)
+end
+
+AddStickerButton.MouseButton1Click:Connect(function()
+    CustomStickerDialog.Visible = true
+    CustomStickerInput:CaptureFocus()
+end)
+
+CustomStickerCancel.MouseButton1Click:Connect(function()
+    CloseCustomStickerDialog()
+end)
+
+CustomStickerSave.MouseButton1Click:Connect(function()
+    local stickerUrl = NormalizeStickerId(CustomStickerInput.Text)
+    if not stickerUrl then
+        CustomStickerHint.Text = "Invalid ID. Enter a numeric Roblox asset ID."
+        CustomStickerHint.TextColor3 = Color3.fromRGB(255, 90, 90)
+        return
+    end
+
+    if not table.find(PersistentCustomStickers, stickerUrl) then
+        table.insert(PersistentCustomStickers, stickerUrl)
+        SavePersistentCustomStickers()
+        AddStickerCard(stickerUrl)
+    end
+
+    CustomStickerHint.Text = "Sticker saved locally."
+    CustomStickerHint.TextColor3 = Color3.fromRGB(0, 255, 150)
+    task.delay(0.6, function()
+        if CustomStickerDialog.Parent then
+            CloseCustomStickerDialog()
+        end
+    end)
+end)
+
+CustomStickerInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed and CustomStickerDialog.Visible then
+        CustomStickerSave:Activate()
+    end
+end)
+
 
 -- ============================================================================
 -- PROFILE TAB IMPLEMENTATION
