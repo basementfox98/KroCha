@@ -1063,23 +1063,6 @@ local function HasAdminPermission(username)
     return role == "Architect" or role == "Overseer" or role == "Critic"
 end
 
-local function CanUseSpoof(username)
-    local role = GetAssignedOrCalculatedRole(username)
-    local allowedRoles = {
-        ["ARCHITECT"] = true,
-        ["OVERSEER"] = true,
-        ["HACKER"] = true,
-        ["SERIAL KILLER🔪"] = true,
-        ["SERIAL KILLER"] = true,
-        ["EMPERROR👑"] = true,
-        ["EMPERROR"] = true,
-        ["GOD"] = true,
-        ["COM-GOD"] = true,
-        ["COM GOD"] = true
-    }
-    return allowedRoles[string.upper(role)] == true
-end
-
 local function FetchRemoteRankStyles()
     local jsonStyles = HttpRequest(GITHUB_RANK_STYLES_URL, "GET")
     if not jsonStyles or type(jsonStyles) ~= "table" then return end
@@ -2958,14 +2941,11 @@ SendChatMessage = function()
         return
     elseif not isPrivate and string.sub(typedText, 1, 7) == "!spoof " then
         local requested = string.sub(typedText, 8)
-        local lowered = string.lower(requested)
         if not CanUseSpoof(LocalPlayer.Name) then
             ShowLocalSystemMessage("[AI MoD] : Command failed. Only Hacker, Architect, Overseer and Com-God can use !spoof.", true)
         else
             SpoofedDisplayName = requested
             ShowLocalSystemMessage("[AI MoD] : Display name changed successfully ✓")
-        else
-            ShowLocalSystemMessage("[AI MoD] : Command failed. You do not have permission to use !spoof.", true)
         end
         MessageInput.Text = ""
         return
