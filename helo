@@ -473,59 +473,6 @@ local ActiveTab = "GLOBAL"
 -- ============================================================================
 -- STICKER REGISTRY
 -- ============================================================================
--- ============================================================================
--- LOCAL PERSISTENT STICKERS (ADDITIVE FEATURE)
--- ============================================================================
-local KronosCustomStickerFile = "Kronos_Custom_Stickers.txt"
-local KronosCustomStickers = {}
-
-local function LoadKronosCustomStickers()
-    if not (readfile and isfile) then return end
-    if not isfile(KronosCustomStickerFile) then return end
-
-    local ok, raw = pcall(function()
-        return readfile(KronosCustomStickerFile)
-    end)
-    if not ok or not raw or raw == "" then return end
-
-    local decodeOk, decoded = pcall(function()
-        return HttpService:JSONDecode(raw)
-    end)
-
-    if decodeOk and type(decoded) == "table" then
-        for _, stickerId in ipairs(decoded) do
-            if type(stickerId) == "string" and stickerId ~= "" and not table.find(KronosCustomStickers, stickerId) then
-                table.insert(KronosCustomStickers, stickerId)
-            end
-        end
-    end
-end
-
-local function SaveKronosCustomStickers()
-    if not writefile then return end
-    pcall(function()
-        writefile(KronosCustomStickerFile, HttpService:JSONEncode(KronosCustomStickers))
-    end)
-end
-
-local function ConvertKronosStickerId(value)
-    value = tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
-    if value == "" then return nil end
-
-    local id = value:match("^%d+$")
-    if not id then
-        id = value:match("[?&]id=(%d+)")
-    end
-    if not id then
-        id = value:match("(%d+)")
-    end
-    if not id then return nil end
-
-    return "rbxthumb://type=Asset&id=" .. id .. "&w=420&h=420"
-end
-
-LoadKronosCustomStickers()
-
 local baseStickers = {
     "rbxthumb://type=Asset&id=125983689093696&w=420&h=420",
     "rbxthumb://type=Asset&id=75506307767417&w=420&h=420",
@@ -794,13 +741,6 @@ for _, v in ipairs(baseStickers) do
 end
 baseStickers = uniqueStickers
 
-for _, savedSticker in ipairs(KronosCustomStickers) do
-    if not hash[savedSticker] then
-        table.insert(baseStickers, savedSticker)
-        hash[savedSticker] = true
-    end
-end
-
 -- ============================================================================
 -- HARDCODED RANKS & DEFAULT STYLES
 -- ============================================================================
@@ -860,6 +800,11 @@ local RANK_STYLES = {
 ["MUTHAL"]             = { Start = Color3.fromRGB(169, 169, 169), End = Color3.fromRGB(105, 105, 105), Name = Color3.fromRGB(211, 211, 211), Speed = 1.2 },
 ["DADDY"]              = { Start = Color3.fromRGB(255, 140, 0),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(255, 140, 0),   Speed = 1.5 },
 ["STEPDADDY"]          = { Start = Color3.fromRGB(255, 69, 0),    End = Color3.fromRGB(47, 79, 79),    Name = Color3.fromRGB(255, 99, 71),   Speed = 1.5 },
+
+-- NEW HIGH-TIER ROLES
+["Khanayak"]            = { Start = Color3.fromRGB(255, 215, 0),   End = Color3.fromRGB(255, 69, 0),    Name = Color3.fromRGB(255, 215, 0),   Speed = 0.70, IsAdmin = true },
+["Khiladi"]             = { Start = Color3.fromRGB(0, 255, 255),   End = Color3.fromRGB(115, 70, 255),  Name = Color3.fromRGB(0, 255, 255),   Speed = 0.65, IsAdmin = true },
+["Khatra"]              = { Start = Color3.fromRGB(255, 0, 80),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(255, 0, 80),   Speed = 0.55, IsAdmin = true },
 }
 
 -- ============================================================================
@@ -904,6 +849,9 @@ local ROLE_FONT_ANIMATION = {
     ["Regent of Clans"] = { Speed = "Medium" },
     ["Regent of Havoc"] = { Speed = "Medium" },
     ["HACKER"] = { Speed = "Fast" },
+    ["Khanayak"] = { Speed = "Fast" },
+    ["Khiladi"] = { Speed = "Fast" },
+    ["Khatra"] = { Speed = "Flashing" },
 }
 
 local ROLE_FONT_SPEED = {
@@ -1073,26 +1021,46 @@ local function GetAssignedOrCalculatedRole(username)
     end
 end
 
-local function HasAdminPermission(username)
-    local role = GetAssignedOrCalculatedRole(username)
-    return role == "Architect" or role == "Overseer" or role == "Critic"
+-- Restricted roles: only these roles may use !spoof.
+local RESTRICTED_SPOOF_ROLES = {
+    ["HACKER"] = true,
+    ["ARCHITECT"] = true,
+    ["OVERSEER"] = true,
+    ["COM-GOD"] = true,
+    ["COM GOD"] = true,
+}
+
+-- These users may freely switch into the restricted roles.
+local RESTRICTED_ROLE_SWITCH_USER_IDS = {
+    [10366852350] = true, -- Kabir_Priv
+    [7624879883] = true,  -- professor200785
+}
+
+local RESTRICTED_ROLE_SWITCH_NAMES = {
+    ["Kabir_Priv"] = true,
+    ["professor200785"] = true,
+    ["Moosman99999"] = true,
+}
+
+local function CanSwitchRestrictedRole(username)
+    local playerObj = Players:FindFirstChild(username)
+    if playerObj and RESTRICTED_ROLE_SWITCH_USER_IDS[playerObj.UserId] then
+        return true
+    end
+    return RESTRICTED_ROLE_SWITCH_NAMES[username] == true
+end
+
+local function IsRestrictedRole(roleName)
+    return roleName and RESTRICTED_SPOOF_ROLES[string.upper(roleName)] == true
 end
 
 local function CanUseSpoof(username)
+    return IsRestrictedRole(GetAssignedOrCalculatedRole(username))
+end
+
+local function HasAdminPermission(username)
     local role = GetAssignedOrCalculatedRole(username)
-    local allowedRoles = {
-        ["ARCHITECT"] = true,
-        ["OVERSEER"] = true,
-        ["HACKER"] = true,
-        ["SERIAL KILLER🔪"] = true,
-        ["SERIAL KILLER"] = true,
-        ["EMPERROR👑"] = true,
-        ["EMPERROR"] = true,
-        ["GOD"] = true,
-        ["COM-GOD"] = true,
-        ["COM GOD"] = true
-    }
-    return allowedRoles[string.upper(role)] == true
+    return role == "Architect" or role == "Overseer" or role == "Critic"
 end
 
 local function FetchRemoteRankStyles()
@@ -1100,7 +1068,8 @@ local function FetchRemoteRankStyles()
     if not jsonStyles or type(jsonStyles) ~= "table" then return end
 
     for rankName, data in pairs(jsonStyles) do
-        if rankName ~= "Overseer" and rankName ~= "Architect" and rankName ~= "Critic" then
+        if rankName ~= "Overseer" and rankName ~= "Architect" and rankName ~= "Critic"
+            and rankName ~= "Khanayak" and rankName ~= "Khiladi" and rankName ~= "Khatra" then
             if data.Start and data.End and data.Name then
                 RANK_STYLES[rankName] = {
                     Start = Color3.fromRGB(data.Start[1], data.Start[2], data.Start[3]),
@@ -1316,37 +1285,6 @@ local AboutTabCorner = Instance.new("UICorner")
 AboutTabCorner.CornerRadius = UDim.new(0, 8)
 AboutTabCorner.Parent = AboutTabBtn
 
-local KronosMuteButton = Instance.new("TextButton")
-KronosMuteButton.Name = "KronosMuteButton"
-KronosMuteButton.Size = UDim2.new(0, 34, 0, 24)
-KronosMuteButton.Position = UDim2.new(1, -126, 0, 6)
-KronosMuteButton.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
-KronosMuteButton.BackgroundTransparency = 0.15
-KronosMuteButton.BorderSizePixel = 0
-KronosMuteButton.Font = Enum.Font.GothamBold
-KronosMuteButton.Text = "♫"
-KronosMuteButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-KronosMuteButton.TextSize = 13
-KronosMuteButton.AutoButtonColor = false
-KronosMuteButton.ZIndex = 11
-KronosMuteButton.Parent = HeaderBar
-
-local KronosMuteCorner = Instance.new("UICorner")
-KronosMuteCorner.CornerRadius = UDim.new(0, 7)
-KronosMuteCorner.Parent = KronosMuteButton
-
-local KronosMuteStroke = Instance.new("UIStroke")
-KronosMuteStroke.Thickness = 1
-KronosMuteStroke.Color = Color3.fromRGB(255, 0, 0)
-KronosMuteStroke.Transparency = 0.35
-KronosMuteStroke.Parent = KronosMuteButton
-
-KronosMuteButton.MouseButton1Click:Connect(function()
-    KronosNotificationsMuted = not KronosNotificationsMuted
-    KronosMuteButton.Text = KronosNotificationsMuted and "×♫" or "♫"
-    KronosMuteButton.TextColor3 = KronosNotificationsMuted and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(255, 255, 255)
-end)
-
 local KronosHeaderLabel = Instance.new("TextLabel")
 KronosHeaderLabel.Name = "KronosHeaderLabel"
 KronosHeaderLabel.Size = UDim2.new(0, 80, 0, 26)
@@ -1526,11 +1464,7 @@ NotifContainerFrame.Parent = ScreenGui
 local ActiveNotifBtn = nil
 local ShownNotificationIds = {}
 
--- Additive notification mute state. The existing notification UI remains unchanged.
-local KronosNotificationsMuted = false
-
 local function PlayNotificationSound(soundId)
-    if KronosNotificationsMuted then return end
     local sound = Instance.new("Sound")
     sound.Name = "KronosNotificationSound"
     sound.SoundId = soundId or NOTIFICATION_SOUND_ID
@@ -1726,7 +1660,7 @@ StickerGrid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     StickerScroller.CanvasSize = UDim2.new(0, 0, 0, StickerGrid.AbsoluteContentSize.Y + 12)
 end)
 
-local function AddKronosStickerCard(stickerUrl)
+for _, stickerUrl in ipairs(baseStickers) do
     local stickerCard = Instance.new("ImageButton")
     stickerCard.Name = "StickerCard"
     stickerCard.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
@@ -1753,157 +1687,7 @@ local function AddKronosStickerCard(stickerUrl)
             if SendChatMessage then SendChatMessage() end
         end
     end)
-
-    return stickerCard
 end
-
--- Rebuild only the card creation through the helper; the panel/scroller itself is unchanged.
-for _, stickerUrl in ipairs(baseStickers) do
-    AddKronosStickerCard(stickerUrl)
-end
-
--- ============================================================================
--- LOCAL STICKER ADD CONTROL
--- ============================================================================
-local StickerAddButton = Instance.new("TextButton")
-StickerAddButton.Name = "StickerAddButton"
-StickerAddButton.Size = UDim2.new(0, 28, 0, 28)
-StickerAddButton.Position = UDim2.new(1, -34, 0, 4)
-StickerAddButton.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
-StickerAddButton.BackgroundTransparency = 0.05
-StickerAddButton.BorderSizePixel = 0
-StickerAddButton.Font = Enum.Font.GothamBold
-StickerAddButton.Text = "+"
-StickerAddButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-StickerAddButton.TextSize = 17
-StickerAddButton.AutoButtonColor = false
-StickerAddButton.ZIndex = 30
-StickerAddButton.Parent = StickerPanel
-
-local StickerAddCorner = Instance.new("UICorner")
-StickerAddCorner.CornerRadius = UDim.new(0, 8)
-StickerAddCorner.Parent = StickerAddButton
-
-local StickerAddStroke = Instance.new("UIStroke")
-StickerAddStroke.Thickness = 1
-StickerAddStroke.Color = Color3.fromRGB(255, 0, 0)
-StickerAddStroke.Transparency = 0.25
-StickerAddStroke.Parent = StickerAddButton
-
-local StickerAddBox = Instance.new("Frame")
-StickerAddBox.Name = "StickerAddBox"
-StickerAddBox.Size = UDim2.new(0, 240, 0, 82)
-StickerAddBox.Position = UDim2.new(1, -246, 0, 36)
-StickerAddBox.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
-StickerAddBox.BackgroundTransparency = 0.04
-StickerAddBox.BorderSizePixel = 0
-StickerAddBox.Visible = false
-StickerAddBox.ZIndex = 40
-StickerAddBox.Parent = StickerPanel
-
-local StickerAddBoxCorner = Instance.new("UICorner")
-StickerAddBoxCorner.CornerRadius = UDim.new(0, 9)
-StickerAddBoxCorner.Parent = StickerAddBox
-
-local StickerAddBoxStroke = Instance.new("UIStroke")
-StickerAddBoxStroke.Thickness = 1.2
-StickerAddBoxStroke.Color = Color3.fromRGB(255, 0, 0)
-StickerAddBoxStroke.Transparency = 0.35
-StickerAddBoxStroke.Parent = StickerAddBox
-
-local StickerAddInput = Instance.new("TextBox")
-StickerAddInput.Name = "StickerAddInput"
-StickerAddInput.Size = UDim2.new(1, -78, 0, 30)
-StickerAddInput.Position = UDim2.new(0, 8, 0, 8)
-StickerAddInput.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-StickerAddInput.BackgroundTransparency = 0.1
-StickerAddInput.BorderSizePixel = 0
-StickerAddInput.ClearTextOnFocus = false
-StickerAddInput.Font = Enum.Font.Gotham
-StickerAddInput.PlaceholderText = "Image ID"
-StickerAddInput.PlaceholderColor3 = Color3.fromRGB(120, 120, 135)
-StickerAddInput.Text = ""
-StickerAddInput.TextColor3 = Color3.fromRGB(240, 240, 245)
-StickerAddInput.TextSize = 11
-StickerAddInput.ZIndex = 41
-StickerAddInput.Parent = StickerAddBox
-
-local StickerAddInputCorner = Instance.new("UICorner")
-StickerAddInputCorner.CornerRadius = UDim.new(0, 7)
-StickerAddInputCorner.Parent = StickerAddInput
-
-local StickerAddSave = Instance.new("TextButton")
-StickerAddSave.Size = UDim2.new(0, 60, 0, 30)
-StickerAddSave.Position = UDim2.new(1, -68, 0, 8)
-StickerAddSave.BackgroundColor3 = Color3.fromRGB(190, 25, 25)
-StickerAddSave.BorderSizePixel = 0
-StickerAddSave.Font = Enum.Font.GothamBold
-StickerAddSave.Text = "SAVE"
-StickerAddSave.TextColor3 = Color3.fromRGB(255, 255, 255)
-StickerAddSave.TextSize = 9
-StickerAddSave.ZIndex = 41
-StickerAddSave.Parent = StickerAddBox
-
-local StickerAddSaveCorner = Instance.new("UICorner")
-StickerAddSaveCorner.CornerRadius = UDim.new(0, 7)
-StickerAddSaveCorner.Parent = StickerAddSave
-
-local StickerAddStatus = Instance.new("TextLabel")
-StickerAddStatus.Size = UDim2.new(1, -16, 0, 26)
-StickerAddStatus.Position = UDim2.new(0, 8, 0, 45)
-StickerAddStatus.BackgroundTransparency = 1
-StickerAddStatus.Font = Enum.Font.Gotham
-StickerAddStatus.Text = "Enter an image ID and save locally."
-StickerAddStatus.TextColor3 = Color3.fromRGB(160, 160, 175)
-StickerAddStatus.TextSize = 9
-StickerAddStatus.TextXAlignment = Enum.TextXAlignment.Left
-StickerAddStatus.ZIndex = 41
-StickerAddStatus.Parent = StickerAddBox
-
-StickerAddButton.MouseButton1Click:Connect(function()
-    StickerAddBox.Visible = not StickerAddBox.Visible
-    if StickerAddBox.Visible then
-        StickerAddInput:CaptureFocus()
-    end
-end)
-
-StickerAddSave.MouseButton1Click:Connect(function()
-    local stickerUrl = ConvertKronosStickerId(StickerAddInput.Text)
-
-    if not stickerUrl then
-        StickerAddStatus.Text = "Invalid image ID."
-        StickerAddStatus.TextColor3 = Color3.fromRGB(255, 90, 90)
-        return
-    end
-
-    if table.find(KronosCustomStickers, stickerUrl) then
-        StickerAddStatus.Text = "Already saved."
-        StickerAddStatus.TextColor3 = Color3.fromRGB(255, 210, 80)
-        return
-    end
-
-    table.insert(KronosCustomStickers, stickerUrl)
-    SaveKronosCustomStickers()
-    AddKronosStickerCard(stickerUrl)
-
-    StickerAddInput.Text = ""
-    StickerAddStatus.Text = "Saved locally."
-    StickerAddStatus.TextColor3 = Color3.fromRGB(90, 255, 170)
-
-    task.delay(0.8, function()
-        if StickerAddBox.Parent then
-            StickerAddBox.Visible = false
-            StickerAddStatus.Text = "Enter an image ID and save locally."
-            StickerAddStatus.TextColor3 = Color3.fromRGB(160, 160, 175)
-        end
-    end)
-end)
-
-StickerAddInput.FocusLost:Connect(function(enterPressed)
-    if enterPressed and StickerAddBox.Visible then
-        StickerAddSave:Activate()
-    end
-end)
 
 -- ============================================================================
 -- PROFILE TAB IMPLEMENTATION
@@ -3119,8 +2903,8 @@ SendChatMessage = function()
         local newRole = string.sub(typedText, 6)
         local allowedRoles = AvailableUserRoles[LocalPlayer.Name] or {}
         local isAdmin = HasAdminPermission(LocalPlayer.Name)
-        if string.lower(newRole) == "architect" or string.lower(newRole) == "overseer" or string.lower(newRole) == "com-god" then
-            ShowLocalSystemMessage("[AI MoD] : Command failed. Architect, Overseer and Com-God are restricted.", true)
+        if IsRestrictedRole(newRole) and not CanSwitchRestrictedRole(LocalPlayer.Name) then
+            ShowLocalSystemMessage("[AI MoD] : Command failed. " .. newRole .. " is a restricted role.", true)
         elseif table.find(allowedRoles, newRole) or isAdmin or RANK_STYLES[newRole] then
             AssignedPlayerRoles[LocalPlayer.Name] = newRole
             DisabledTags[LocalPlayer.Name] = nil
@@ -3157,14 +2941,11 @@ SendChatMessage = function()
         return
     elseif not isPrivate and string.sub(typedText, 1, 7) == "!spoof " then
         local requested = string.sub(typedText, 8)
-        local lowered = string.lower(requested)
-        if lowered == "architect" or lowered == "overseer" or lowered == "com-god" then
-            ShowLocalSystemMessage("[AI MoD] : Command failed. Architect and Overseer cannot be spoofed.", true)
-        elseif CanUseSpoof(LocalPlayer.Name) then
+        if not CanUseSpoof(LocalPlayer.Name) then
+            ShowLocalSystemMessage("[AI MoD] : Command failed. Only Hacker, Architect, Overseer and Com-God can use !spoof.", true)
+        else
             SpoofedDisplayName = requested
             ShowLocalSystemMessage("[AI MoD] : Display name changed successfully ✓")
-        else
-            ShowLocalSystemMessage("[AI MoD] : Command failed. You do not have permission to use !spoof.", true)
         end
         MessageInput.Text = ""
         return
