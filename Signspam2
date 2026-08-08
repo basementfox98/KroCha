@@ -998,7 +998,7 @@ local function GetAssignedOrCalculatedRole(username)
 
     local playerObj = Players:FindFirstChild(username)
 
-    if username == "Kabir_Priv" then
+    if username == "KABIR" then
         return "Architect"
     end
 
@@ -1107,6 +1107,25 @@ BlurEffect.InFocusRadius = 30
 BlurEffect.NearIntensity = 0.75
 BlurEffect.Parent = Lighting
 
+-- KABIR rainbow loop (About tab only)
+task.spawn(function()
+    local hue = 0
+    while true do
+        task.wait(0.03)
+        if not script.Parent then break end
+        hue = (hue + 0.008) % 1
+        local found = false
+        for _, obj in ipairs(script.Parent:GetDescendants()) do
+            if obj:IsA("TextLabel") and obj.Text == "KABIR" then
+                obj.TextColor3 = Color3.fromHSV(hue, 0.9, 1)
+                found = true
+                break
+            end
+        end
+        if not found then break end
+    end
+end)
+
 ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "Kronos_Chat_Gui"
 ScreenGui.ResetOnSpawn = false
@@ -1117,6 +1136,7 @@ ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 450, 0, 320)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
