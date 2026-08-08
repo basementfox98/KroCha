@@ -1021,39 +1021,41 @@ local function GetAssignedOrCalculatedRole(username)
     end
 end
 
--- These users may freely switch into the normally restricted high-tier roles.
--- UserId checks are used where supplied so display/name changes cannot bypass
--- the permission rule.
-local RESTRICTED_ROLE_SWITCH_USERS = {
+-- Restricted roles: only these roles may use !spoof.
+local RESTRICTED_SPOOF_ROLES = {
+    ["HACKER"] = true,
+    ["ARCHITECT"] = true,
+    ["OVERSEER"] = true,
+    ["COM-GOD"] = true,
+    ["COM GOD"] = true,
+}
+
+-- These users may freely switch into the restricted roles.
+local RESTRICTED_ROLE_SWITCH_USER_IDS = {
     [10366852350] = true, -- Kabir_Priv
     [7624879883] = true,  -- professor200785
 }
 
-local RESTRICTED_ROLE_SWITCH_USERNAMES = {
+local RESTRICTED_ROLE_SWITCH_NAMES = {
     ["Kabir_Priv"] = true,
     ["professor200785"] = true,
     ["Moosman99999"] = true,
 }
 
-local RESTRICTED_ROLES = {
-    ["ARCHITECT"] = true,
-    ["OVERSEER"] = true,
-    ["HACKER"] = true,
-    ["COM-GOD"] = true,
-    ["COM GOD"] = true,
-}
-
-local function IsRestrictedRole(roleName)
-    if not roleName then return false end
-    return RESTRICTED_ROLES[string.upper(roleName)] == true
-end
-
 local function CanSwitchRestrictedRole(username)
     local playerObj = Players:FindFirstChild(username)
-    if playerObj and RESTRICTED_ROLE_SWITCH_USERS[playerObj.UserId] then
+    if playerObj and RESTRICTED_ROLE_SWITCH_USER_IDS[playerObj.UserId] then
         return true
     end
-    return RESTRICTED_ROLE_SWITCH_USERNAMES[username] == true
+    return RESTRICTED_ROLE_SWITCH_NAMES[username] == true
+end
+
+local function IsRestrictedRole(roleName)
+    return roleName and RESTRICTED_SPOOF_ROLES[string.upper(roleName)] == true
+end
+
+local function CanUseSpoof(username)
+    return IsRestrictedRole(GetAssignedOrCalculatedRole(username))
 end
 
 local function HasAdminPermission(username)
@@ -1061,10 +1063,21 @@ local function HasAdminPermission(username)
     return role == "Architect" or role == "Overseer" or role == "Critic"
 end
 
--- Spoof is intentionally limited to ONLY these four roles.
 local function CanUseSpoof(username)
     local role = GetAssignedOrCalculatedRole(username)
-    return IsRestrictedRole(role)
+    local allowedRoles = {
+        ["ARCHITECT"] = true,
+        ["OVERSEER"] = true,
+        ["HACKER"] = true,
+        ["SERIAL KILLER🔪"] = true,
+        ["SERIAL KILLER"] = true,
+        ["EMPERROR👑"] = true,
+        ["EMPERROR"] = true,
+        ["GOD"] = true,
+        ["COM-GOD"] = true,
+        ["COM GOD"] = true
+    }
+    return allowedRoles[string.upper(role)] == true
 end
 
 local function FetchRemoteRankStyles()
@@ -2946,7 +2959,9 @@ SendChatMessage = function()
     elseif not isPrivate and string.sub(typedText, 1, 7) == "!spoof " then
         local requested = string.sub(typedText, 8)
         local lowered = string.lower(requested)
-        if CanUseSpoof(LocalPlayer.Name) then
+        if not CanUseSpoof(LocalPlayer.Name) then
+            ShowLocalSystemMessage("[AI MoD] : Command failed. Only Hacker, Architect, Overseer and Com-God can use !spoof.", true)
+        else
             SpoofedDisplayName = requested
             ShowLocalSystemMessage("[AI MoD] : Display name changed successfully ✓")
         else
