@@ -759,15 +759,15 @@ local RANK_STYLES = {
 ["Dark Passenger"]     = { Start = Color3.fromRGB(128, 0, 32),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(128, 0, 32),   Speed = 2.0 },
 ["Obsession"]          = { Start = Color3.fromRGB(112, 128, 144), End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(255, 255, 255), Speed = 1.5 },
 ["Soul Reaper"]        = { Start = Color3.fromRGB(0, 255, 255),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(0, 255, 255),   Speed = 1.5 },
-["Infinite Void"]      = { Start = Color3.fromRGB(75, 0, 130),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(75, 0, 130),   Speed = 1.0 },
+["Infinite Void"]      = { Start = Color3.fromRGB(115, 70, 255), End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(135, 95, 255), Speed = 1.0 },
 ["Hunter"]             = { Start = Color3.fromRGB(255, 69, 0),   End = Color3.fromRGB(255, 255, 255), Name = Color3.fromRGB(255, 255, 255), Speed = 1.5 },
-["Hokage"]             = { Start = Color3.fromRGB(135, 206, 235), End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(135, 206, 235), Speed = 1.5 },
+["Hokage"]             = { Start = Color3.fromRGB(70, 190, 255), End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(95, 205, 255), Speed = 1.5 },
 ["Pirate Emperor"]     = { Start = Color3.fromRGB(64, 224, 208),  End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(64, 224, 208),  Speed = 1.5 },
-["KIRA"]               = { Start = Color3.fromRGB(54, 69, 79),   End = Color3.fromRGB(255, 255, 255), Name = Color3.fromRGB(255, 255, 255), Speed = 1.0 },
+["KIRA"]               = { Start = Color3.fromRGB(105, 120, 135), End = Color3.fromRGB(255, 255, 255), Name = Color3.fromRGB(225, 235, 245), Speed = 1.0 },
 ["Overlord"]           = { Start = Color3.fromRGB(0, 255, 255),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(0, 255, 255),   Speed = 1.5 },
 ["Jobless Sage"]       = { Start = Color3.fromRGB(138, 43, 226),  End = Color3.fromRGB(255, 255, 255), Name = Color3.fromRGB(255, 255, 255), Speed = 1.0 },
 ["Saiyan"]             = { Start = Color3.fromRGB(0, 191, 255),   End = Color3.fromRGB(255, 255, 255), Name = Color3.fromRGB(255, 255, 255), Speed = 1.5 },
-["Monarch"]            = { Start = Color3.fromRGB(0, 0, 139),    End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(0, 0, 139),     Speed = 1.0 },
+["Monarch"]            = { Start = Color3.fromRGB(35, 85, 255), End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(70, 115, 255), Speed = 1.0 },
 ["Devil"]              = { Start = Color3.fromRGB(183, 65, 14),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(183, 65, 14),   Speed = 1.5 },
 ["Hashira"]            = { Start = Color3.fromRGB(0, 128, 128),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(0, 128, 128),   Speed = 1.5 },
 ["Heroic"]             = { Start = Color3.fromRGB(255, 140, 0),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(255, 140, 0),   Speed = 1.5 },
@@ -782,7 +782,7 @@ local RANK_STYLES = {
 ["Malkin"]             = { Start = Color3.fromRGB(255, 0, 255),   End = Color3.fromRGB(255, 255, 255), Name = Color3.fromRGB(255, 182, 193), Speed = 1.0 },
 ["Badmosh"]            = { Start = Color3.fromRGB(255, 255, 0),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(255, 255, 0),   Speed = 1.5 },
 ["Badnam"]             = { Start = Color3.fromRGB(255, 219, 88),  End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(255, 219, 88),  Speed = 2.0 },
-["Batman"]             = { Start = Color3.fromRGB(25, 25, 112),   End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(25, 25, 112),   Speed = 1.5 },
+["Batman"]             = { Start = Color3.fromRGB(55, 75, 190), End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(85, 105, 230), Speed = 1.5 },
 ["Homelander"]         = { Start = Color3.fromRGB(0, 33, 165),    End = Color3.fromRGB(255, 255, 255), Name = Color3.fromRGB(255, 255, 255), Speed = 1.0 },
 ["Viltramite"]         = { Start = Color3.fromRGB(0, 71, 171),    End = Color3.fromRGB(0, 0, 0),       Name = Color3.fromRGB(0, 71, 171),    Speed = 1.5 },
 
@@ -1117,7 +1117,8 @@ ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 450, 0, 320)
-MainFrame.Position = UDim2.new(0.02, 0, 0.55, 0)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
 MainFrame.BackgroundTransparency = 0.35
 MainFrame.BorderSizePixel = 0
@@ -2181,12 +2182,14 @@ SendCorner.Parent = SendButton
 
 local AutoCompleteFrame = Instance.new("ScrollingFrame")
 AutoCompleteFrame.Name = "AutoCompleteFrame"
-AutoCompleteFrame.Size = UDim2.new(0, 200, 0, 120)
-AutoCompleteFrame.Position = UDim2.new(0, 8, 1, -170)
+AutoCompleteFrame.Size = UDim2.new(0, 235, 0, 132)
+AutoCompleteFrame.Position = UDim2.new(0, 8, 1, -182)
 AutoCompleteFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
 AutoCompleteFrame.BackgroundTransparency = 0.2
 AutoCompleteFrame.BorderSizePixel = 0
-AutoCompleteFrame.ScrollBarThickness = 3
+AutoCompleteFrame.ScrollBarThickness = 4
+AutoCompleteFrame.Active = true
+AutoCompleteFrame.Selectable = true
 AutoCompleteFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 0, 0)
 AutoCompleteFrame.Visible = false
 AutoCompleteFrame.ZIndex = 30
@@ -2295,10 +2298,24 @@ local function ShowCommandAutocomplete()
                 button.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
             end)
             button.MouseButton1Click:Connect(function()
-                MessageInput.Text = command .. suggestion
-                MessageInput.CursorPosition = #MessageInput.Text + 1
+                local selectedCommand = command .. suggestion
                 HideCommandAutocomplete()
+
+                -- Setting the textbox after removing the old suggestions avoids
+                -- TextChanged rebuilding the list during the click event.
+                MessageInput.Text = selectedCommand
+                MessageInput.CursorPosition = #selectedCommand + 1
                 MessageInput:CaptureFocus()
+            end)
+
+            button.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    local selectedCommand = command .. suggestion
+                    HideCommandAutocomplete()
+                    MessageInput.Text = selectedCommand
+                    MessageInput.CursorPosition = #selectedCommand + 1
+                    MessageInput:CaptureFocus()
+                end
             end)
 
             shown = shown + 1
@@ -2968,8 +2985,17 @@ MessageInput:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 MessageInput.FocusLost:Connect(function()
+    -- Do not immediately destroy suggestions: clicking/tapping a suggestion
+    -- necessarily causes the TextBox to lose focus first.
     task.defer(function()
-        if not MessageInput:IsFocused() then
+        if not MessageInput then return end
+        local current = string.lower(MessageInput.Text or "")
+        local isCommand = current == "!tag"
+            or current:sub(1, 5) == "!tag "
+            or current == "!spoof"
+            or current:sub(1, 7) == "!spoof "
+
+        if not isCommand then
             HideCommandAutocomplete()
         end
     end)
