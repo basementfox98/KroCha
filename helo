@@ -1021,16 +1021,10 @@ end
 local function CanUseSpoof(username)
     local role = GetAssignedOrCalculatedRole(username)
     local allowedRoles = {
+        ["COM-GOD"] = true,
         ["ARCHITECT"] = true,
         ["OVERSEER"] = true,
-        ["HACKER"] = true,
-        ["SERIAL KILLER🔪"] = true,
-        ["SERIAL KILLER"] = true,
-        ["EMPERROR👑"] = true,
-        ["EMPERROR"] = true,
-        ["GOD"] = true,
-        ["COM-GOD"] = true,
-        ["COM GOD"] = true
+        ["HACKER"] = true
     }
     return allowedRoles[string.upper(role)] == true
 end
