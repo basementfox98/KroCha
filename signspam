@@ -1260,14 +1260,14 @@ end)
 
 local ToggleButton = Instance.new("TextButton")
 ToggleButton.Name = "ChatToggleButton"
-ToggleButton.Size = UDim2.new(0, 118, 0, 40)
+ToggleButton.Size = UDim2.new(0, 116, 0, 40)
 ToggleButton.Position = UDim2.new(0.02, 0, 0.5, 0)
 ToggleButton.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
-ToggleButton.BackgroundTransparency = 0.22
+ToggleButton.BackgroundTransparency = 0.25
 ToggleButton.Font = Enum.Font.GothamBold
 ToggleButton.Text = "  ◈  KRONOS"
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.TextSize = 12
+ToggleButton.TextSize = 11
 ToggleButton.AutoButtonColor = false
 ToggleButton.Visible = true
 ToggleButton.ZIndex = 200
@@ -1289,60 +1289,96 @@ ToggleScale.Parent = ToggleButton
 local MainScale = Instance.new("UIScale")
 MainScale.Parent = MainFrame
 
-local MainOriginalPosition = MainFrame.Position
-local MainHiddenPosition = MainOriginalPosition + UDim2.new(0, 0, 0, 55)
-local MainShown = true
-local MainTransitionToken = 0
+local ChatOriginalPosition = MainFrame.Position
+local ChatHiddenPosition = ChatOriginalPosition + UDim2.new(0, 0, 0, 55)
+local ChatIsShown = true
+local ChatTransitionBusy = false
+
+ToggleButton.MouseEnter:Connect(function()
+    TweenService:Create(
+        ToggleScale,
+        TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {Scale = 1.06}
+    ):Play()
+end)
+
+ToggleButton.MouseLeave:Connect(function()
+    TweenService:Create(
+        ToggleScale,
+        TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {Scale = 1}
+    ):Play()
+end)
 
 task.spawn(function()
     while ToggleButton.Parent do
-        local a = TweenService:Create(ToggleStroke, TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.55})
-        a:Play()
-        a.Completed:Wait()
-        if not ToggleButton.Parent then break end
-        local b = TweenService:Create(ToggleStroke, TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.12})
-        b:Play()
-        b.Completed:Wait()
+        TweenService:Create(
+            ToggleStroke,
+            TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+            {Transparency = 0.55}
+        ):Play()
+        task.wait(0.8)
+        TweenService:Create(
+            ToggleStroke,
+            TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+            {Transparency = 0.12}
+        ):Play()
+        task.wait(0.8)
     end
 end)
 
-ToggleButton.MouseEnter:Connect(function()
-    TweenService:Create(ToggleScale, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 1.06}):Play()
-end)
-ToggleButton.MouseLeave:Connect(function()
-    TweenService:Create(ToggleScale, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 1}):Play()
-end)
-
-local function SetChatGuiVisible(show)
-    MainTransitionToken = MainTransitionToken + 1
-    local token = MainTransitionToken
+local function SetChatVisibility(show)
+    if ChatTransitionBusy then return end
+    ChatTransitionBusy = true
 
     if show then
-        MainShown = true
+        ChatIsShown = true
         MainFrame.Visible = true
-        MainFrame.Position = MainHiddenPosition
+        MainFrame.Position = ChatHiddenPosition
         MainScale.Scale = 0.72
-        TweenService:Create(MainFrame, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = MainOriginalPosition}):Play()
-        TweenService:Create(MainScale, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+
+        local move = TweenService:Create(
+            MainFrame,
+            TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+            {Position = ChatOriginalPosition}
+        )
+        local scale = TweenService:Create(
+            MainScale,
+            TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+            {Scale = 1}
+        )
+        move:Play()
+        scale:Play()
+        move.Completed:Wait()
         ToggleButton.Text = "  ◈  KRONOS"
     else
-        MainShown = false
-        local p = TweenService:Create(MainFrame, TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Position = MainHiddenPosition})
-        local s = TweenService:Create(MainScale, TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Scale = 0.72})
-        p:Play()
-        s:Play()
-        task.spawn(function()
-            p.Completed:Wait()
-            if token == MainTransitionToken and not MainShown then
-                MainFrame.Visible = false
-            end
-        end)
+        ChatIsShown = false
+
+        local move = TweenService:Create(
+            MainFrame,
+            TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+            {Position = ChatHiddenPosition}
+        )
+        local scale = TweenService:Create(
+            MainScale,
+            TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+            {Scale = 0.72}
+        )
+        move:Play()
+        scale:Play()
+        move.Completed:Wait()
+
+        if not ChatIsShown then
+            MainFrame.Visible = false
+        end
         ToggleButton.Text = "  ◇  KRONOS"
     end
+
+    ChatTransitionBusy = false
 end
 
-ToggleButton.Activated:Connect(function()
-    SetChatGuiVisible(not MainShown)
+ToggleButton.MouseButton1Click:Connect(function()
+    SetChatVisibility(not ChatIsShown)
 end)
 
 local MessageContainer = Instance.new("ScrollingFrame")
@@ -2011,129 +2047,6 @@ local InputCorner = Instance.new("UICorner")
 InputCorner.CornerRadius = UDim.new(0, 12)
 InputCorner.Parent = InputBarFrame
 
-local CommandAutocompleteFrame = Instance.new("Frame")
-CommandAutocompleteFrame.Name = "CommandAutocompleteFrame"
-CommandAutocompleteFrame.Size = UDim2.new(1, -95, 0, 30)
-CommandAutocompleteFrame.Position = UDim2.new(0, 8, 0, -34)
-CommandAutocompleteFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
-CommandAutocompleteFrame.BackgroundTransparency = 0.08
-CommandAutocompleteFrame.BorderSizePixel = 0
-CommandAutocompleteFrame.Visible = false
-CommandAutocompleteFrame.ZIndex = 150
-CommandAutocompleteFrame.Parent = InputBarFrame
-
-local AutoCorner = Instance.new("UICorner")
-AutoCorner.CornerRadius = UDim.new(0, 9)
-AutoCorner.Parent = CommandAutocompleteFrame
-
-local AutoStroke = Instance.new("UIStroke")
-AutoStroke.Thickness = 1.5
-AutoStroke.Color = Color3.fromRGB(255, 45, 55)
-AutoStroke.Transparency = 0.25
-AutoStroke.Parent = CommandAutocompleteFrame
-
-local AutoLayout = Instance.new("UIListLayout")
-AutoLayout.FillDirection = Enum.FillDirection.Horizontal
-AutoLayout.Padding = UDim.new(0, 5)
-AutoLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-AutoLayout.Parent = CommandAutocompleteFrame
-
-local AutoPadding = Instance.new("UIPadding")
-AutoPadding.PaddingLeft = UDim.new(0, 6)
-AutoPadding.PaddingRight = UDim.new(0, 6)
-AutoPadding.Parent = CommandAutocompleteFrame
-
-local function ClearAutocompleteSuggestions()
-    for _, child in ipairs(CommandAutocompleteFrame:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
-    end
-    CommandAutocompleteFrame.Visible = false
-end
-
-local function BuildAutocompleteSuggestions()
-    ClearAutocompleteSuggestions()
-    local typed = MessageInput and MessageInput.Text or ""
-    local lower = string.lower(typed)
-    local command, query
-
-    if lower:sub(1, 5) == "!tag " then
-        command, query = "!tag ", typed:sub(6)
-    elseif lower == "!tag" then
-        command, query = "!tag ", ""
-    elseif lower:sub(1, 7) == "!spoof " then
-        command, query = "!spoof ", typed:sub(8)
-    elseif lower == "!spoof" then
-        command, query = "!spoof ", ""
-    else
-        return
-    end
-
-    local suggestions, seen = {}, {}
-    if command == "!tag " then
-        for roleName in pairs(RANK_STYLES) do
-            if not seen[roleName] then
-                table.insert(suggestions, roleName)
-                seen[roleName] = true
-            end
-        end
-        for _, roles in pairs(AvailableUserRoles) do
-            for _, roleName in ipairs(roles) do
-                if not seen[roleName] then
-                    table.insert(suggestions, roleName)
-                    seen[roleName] = true
-                end
-            end
-        end
-    else
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                table.insert(suggestions, player.DisplayName)
-            end
-        end
-    end
-
-    table.sort(suggestions, function(a, b) return string.lower(a) < string.lower(b) end)
-
-    local q, count = string.lower(query or ""), 0
-    for _, suggestion in ipairs(suggestions) do
-        if q == "" or suggestion:lower():sub(1, #q) == q then
-            local button = Instance.new("TextButton")
-            button.AutomaticSize = Enum.AutomaticSize.X
-            button.Size = UDim2.new(0, 0, 0, 22)
-            button.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
-            button.BackgroundTransparency = 0.15
-            button.BorderSizePixel = 0
-            button.Font = Enum.Font.GothamMedium
-            button.Text = "  " .. suggestion .. "  "
-            button.TextColor3 = Color3.fromRGB(235, 235, 245)
-            button.TextSize = 9
-            button.ZIndex = 151
-            button.Parent = CommandAutocompleteFrame
-
-            local c = Instance.new("UICorner")
-            c.CornerRadius = UDim.new(0, 6)
-            c.Parent = button
-
-            button.MouseEnter:Connect(function()
-                TweenService:Create(button, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(150, 25, 35)}):Play()
-            end)
-            button.MouseLeave:Connect(function()
-                TweenService:Create(button, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(35, 35, 50)}):Play()
-            end)
-            button.Activated:Connect(function()
-                MessageInput.Text = command .. suggestion
-                MessageInput.CursorPosition = #MessageInput.Text + 1
-                ClearAutocompleteSuggestions()
-                MessageInput:CaptureFocus()
-            end)
-
-            count = count + 1
-            if count >= 6 then break end
-        end
-    end
-    CommandAutocompleteFrame.Visible = count > 0
-end
-
 MessageInput = Instance.new("TextBox")
 MessageInput.Name = "MessageInput"
 MessageInput.Size = UDim2.new(1, -95, 1, -8)
@@ -2287,6 +2200,114 @@ local AutoCompleteLayout = Instance.new("UIListLayout")
 AutoCompleteLayout.SortOrder = Enum.SortOrder.LayoutOrder
 AutoCompleteLayout.Padding = UDim.new(0, 2)
 AutoCompleteLayout.Parent = AutoCompleteFrame
+
+local function HideCommandAutocomplete()
+    for _, child in ipairs(AutoCompleteFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    AutoCompleteFrame.Visible = false
+end
+
+local function ShowCommandAutocomplete()
+    if not MessageInput then return end
+
+    HideCommandAutocomplete()
+
+    local typed = MessageInput.Text or ""
+    local lower = string.lower(typed)
+    local command = nil
+    local query = ""
+
+    if lower == "!tag" or lower:sub(1, 5) == "!tag " then
+        command = "!tag "
+        query = typed:sub(6)
+    elseif lower == "!spoof" or lower:sub(1, 7) == "!spoof " then
+        command = "!spoof "
+        query = typed:sub(8)
+    else
+        return
+    end
+
+    local suggestions = {}
+    local seen = {}
+
+    if command == "!tag " then
+        for roleName in pairs(RANK_STYLES) do
+            if not seen[roleName] then
+                table.insert(suggestions, roleName)
+                seen[roleName] = true
+            end
+        end
+        for _, roles in pairs(AvailableUserRoles) do
+            for _, roleName in ipairs(roles) do
+                if not seen[roleName] then
+                    table.insert(suggestions, roleName)
+                    seen[roleName] = true
+                end
+            end
+        end
+    else
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                table.insert(suggestions, player.DisplayName)
+            end
+        end
+    end
+
+    table.sort(suggestions, function(a, b)
+        return string.lower(a) < string.lower(b)
+    end)
+
+    local q = string.lower(query)
+    local shown = 0
+
+    for _, suggestion in ipairs(suggestions) do
+        if q == "" or string.sub(string.lower(suggestion), 1, #q) == q then
+            local button = Instance.new("TextButton")
+            button.Size = UDim2.new(1, -8, 0, 24)
+            button.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+            button.BackgroundTransparency = 0.15
+            button.BorderSizePixel = 0
+            button.Font = Enum.Font.GothamMedium
+            button.Text = "  " .. suggestion
+            button.TextColor3 = Color3.fromRGB(235, 235, 240)
+            button.TextSize = 10
+            button.TextXAlignment = Enum.TextXAlignment.Left
+            button.ZIndex = 31
+            button.Parent = AutoCompleteFrame
+
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0, 6)
+            corner.Parent = button
+
+            local stroke = Instance.new("UIStroke")
+            stroke.Thickness = 1
+            stroke.Color = Color3.fromRGB(255, 0, 0)
+            stroke.Transparency = 0.65
+            stroke.Parent = button
+
+            button.MouseEnter:Connect(function()
+                button.BackgroundColor3 = Color3.fromRGB(55, 25, 35)
+            end)
+            button.MouseLeave:Connect(function()
+                button.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+            end)
+            button.MouseButton1Click:Connect(function()
+                MessageInput.Text = command .. suggestion
+                MessageInput.CursorPosition = #MessageInput.Text + 1
+                HideCommandAutocomplete()
+                MessageInput:CaptureFocus()
+            end)
+
+            shown = shown + 1
+            if shown >= 6 then break end
+        end
+    end
+
+    AutoCompleteFrame.Visible = shown > 0
+end
 
 AutoCompleteLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     AutoCompleteFrame.CanvasSize = UDim2.new(0, 0, 0, AutoCompleteLayout.AbsoluteContentSize.Y + 6)
@@ -2942,12 +2963,14 @@ SendChatMessage = function()
     end)
 end
 
-MessageInput:GetPropertyChangedSignal("Text"):Connect(BuildAutocompleteSuggestions)
+MessageInput:GetPropertyChangedSignal("Text"):Connect(function()
+    ShowCommandAutocomplete()
+end)
 
 MessageInput.FocusLost:Connect(function()
     task.defer(function()
         if not MessageInput:IsFocused() then
-            ClearAutocompleteSuggestions()
+            HideCommandAutocomplete()
         end
     end)
 end)
