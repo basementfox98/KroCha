@@ -465,7 +465,7 @@ local SERVER_MESSAGES_ENDPOINT = SERVER_FIREBASE_URL .. "server_chat/" .. SERVER
 local REQUEST_FIREBASE_URL = "https://gctagreq-default-rtdb.asia-southeast1.firebasedatabase.app/"
 local REQUEST_ENDPOINT = REQUEST_FIREBASE_URL .. "requests.json"
 
-local GITHUB_ROLE_LIST_URL = "https://raw.githubusercontent.com/thedevilondiscord/GC/refs/heads/main/GC_RoleList.json"
+local GITHUB_ROLE_LIST_URL = "https://raw.githubusercontent.com/basementfox98/KroCha/refs/heads/main/AudioIDduplicate.json"
 local GITHUB_RANK_STYLES_URL = nil -- Role colours are local; only the GitHub roster is dynamic.
 
 local JOIN_SOUND_ID = "rbxassetid://7460825623"
@@ -1238,7 +1238,7 @@ end
 -- ============================================================================
 MUSIC_SESSION_FIREBASE_URL = "https://kmusicsessionxd-default-rtdb.asia-southeast1.firebasedatabase.app/"
 MUSIC_SESSION_ROOT = MUSIC_SESSION_FIREBASE_URL .. "music_sessions"
-MUSIC_ROSTER_URL = "https://raw.githubusercontent.com/basementfox98/DBforS2/refs/heads/main/db2"
+MUSIC_ROSTER_URL = "https://raw.githubusercontent.com/basementfox98/DBforS/refs/heads/main/songs.json"
 KRONO_JOCKIE_NAME = "Krono Jockie"
 KRONO_JOCKIE_USERNAME = "krono_jockie"
 KRONO_JOCKIE_PFP = "7261787230"
@@ -1314,8 +1314,13 @@ local function GetMusicSongName(songId)
     for category, songs in pairs(MusicRoster) do
         if type(songs) == "table" then
             for _, song in ipairs(songs) do
-                if type(song) == "table" and tostring(song.id) == tostring(songId) then
-                    return tostring(song.name or songId), tostring(category)
+                if type(song) == "table" then
+                    local songIdValue = song.ID or song.id
+                    local songNameValue = song.N or song.name
+                    if tostring(songIdValue) == tostring(songId) then
+                        return tostring(songNameValue or songId), tostring(category)
+                    end
+                end
                 end
             end
         end
@@ -1648,7 +1653,7 @@ end
 -- If the file cannot be fetched or parsed, authorization is DENIED.
 -- ============================================================================
 
-local COMMAND_ROSTER_URL = "https://raw.githubusercontent.com/thedevilondiscord/Extentions/refs/heads/main/MusicIDlist"
+local COMMAND_ROSTER_URL = "https://raw.githubusercontent.com/basementfox98/KroCha/refs/heads/main/AudioIDduplicate"
 
 local CommandRoster = {}
 local CommandRosterLoaded = false
@@ -3256,7 +3261,9 @@ function RenderMusicSongList(category)
             b.BackgroundTransparency = 0.12
             b.BorderSizePixel = 0
             b.Font = Enum.Font.GothamMedium
-            b.Text = "  " .. tostring(song.name or "Unnamed") .. "  •  " .. tostring(song.id or "")
+            local songName = song.N or song.name
+            local songId = song.ID or song.id
+            b.Text = "  " .. tostring(songName or "Unnamed") .. "  •  " .. tostring(songId or "")
             b.TextColor3 = Color3.fromRGB(235, 235, 240)
             b.TextSize = 9
             b.TextXAlignment = Enum.TextXAlignment.Left
@@ -3269,9 +3276,9 @@ function RenderMusicSongList(category)
                     ShowLocalSystemMessage("[AI MoD] : Only the Music Session Host can play music.", true)
                     return
                 end
-                local id = tostring(song.id or "")
+                local id = tostring(song.ID or song.id or "")
                 if id == "" then return end
-                local name = tostring(song.name or id)
+                local name = tostring(song.N or song.name or id)
                 HostSetMusic(id, name)
             end)
         end
