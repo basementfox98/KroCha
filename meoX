@@ -1,4 +1,3 @@
---XXXXXXOOOOOOOOOOXXXXXXXXXOOOO
 -- LocalScript inside StarterPlayerScripts / StarterGui
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
@@ -466,7 +465,7 @@ local SERVER_MESSAGES_ENDPOINT = SERVER_FIREBASE_URL .. "server_chat/" .. SERVER
 local REQUEST_FIREBASE_URL = "https://gctagreq-default-rtdb.asia-southeast1.firebasedatabase.app/"
 local REQUEST_ENDPOINT = REQUEST_FIREBASE_URL .. "requests.json"
 
-local GITHUB_ROLE_LIST_URL = "https://raw.githubusercontent.com/thedevilondiscord/GC/refs/heads/main/GC_RoleList.json"
+local GITHUB_ROLE_LIST_URL = "https://raw.githubusercontent.com/basementfox98/KroCha/refs/heads/main/AudioIDduplicate.json"
 local GITHUB_RANK_STYLES_URL = nil -- Role colours are local; only the GitHub roster is dynamic.
 
 local JOIN_SOUND_ID = "rbxassetid://7460825623"
@@ -1239,7 +1238,7 @@ end
 -- ============================================================================
 MUSIC_SESSION_FIREBASE_URL = "https://kmusicsessionxd-default-rtdb.asia-southeast1.firebasedatabase.app/"
 MUSIC_SESSION_ROOT = MUSIC_SESSION_FIREBASE_URL .. "music_sessions"
-MUSIC_ROSTER_URL = "https://raw.githubusercontent.com/basementfox98/DBforS2/refs/heads/main/db2"
+MUSIC_ROSTER_URL = "https://raw.githubusercontent.com/basementfox98/DBforS/refs/heads/main/songs.json"
 KRONO_JOCKIE_NAME = "Krono Jockie"
 KRONO_JOCKIE_USERNAME = "krono_jockie"
 KRONO_JOCKIE_PFP = "7261787230"
@@ -1300,15 +1299,43 @@ end
 
 local function LoadMusicRoster()
     local data = HttpRequest(MUSIC_ROSTER_URL, "GET")
-    if type(data) == "table" then
-        MusicRoster = data
-        MusicRosterLoaded = true
-        MusicRosterCategories = {}
-        for category in pairs(data) do table.insert(MusicRosterCategories, category) end
-        table.sort(MusicRosterCategories)
-        return true
+    if type(data) ~= "table" then
+        MusicRosterLoaded = false
+        return false
     end
-    return false
+
+    -- The new database intentionally uses the compact N/ID schema:
+    --   { [category] = { { N = "Song Name", ID = "123" }, ... } }
+    -- Normalize it once into the internal name/id shape used by the existing
+    -- Music Session UI and Firebase payloads. This keeps the rest of the music
+    -- system unchanged and also tolerates the previous name/id schema.
+    local normalized = {}
+    for category, songs in pairs(data) do
+        if type(songs) == "table" then
+            normalized[category] = {}
+            for _, song in ipairs(songs) do
+                if type(song) == "table" then
+                    local id = song.ID or song.id
+                    local name = song.N or song.name
+                    if id ~= nil and tostring(id) ~= "" then
+                        table.insert(normalized[category], {
+                            name = tostring(name or id),
+                            id = tostring(id),
+                        })
+                    end
+                end
+            end
+        end
+    end
+
+    MusicRoster = normalized
+    MusicRosterLoaded = true
+    MusicRosterCategories = {}
+    for category in pairs(normalized) do
+        table.insert(MusicRosterCategories, category)
+    end
+    table.sort(MusicRosterCategories)
+    return true
 end
 
 local function GetMusicSongName(songId)
@@ -1649,7 +1676,7 @@ end
 -- If the file cannot be fetched or parsed, authorization is DENIED.
 -- ============================================================================
 
-local COMMAND_ROSTER_URL = "https://raw.githubusercontent.com/thedevilondiscord/Extentions/refs/heads/main/MusicIDlist"
+local COMMAND_ROSTER_URL = "https://raw.githubusercontent.com/basementfox98/KroCha/refs/heads/main/AudioIDduplicate"
 
 local CommandRoster = {}
 local CommandRosterLoaded = false
